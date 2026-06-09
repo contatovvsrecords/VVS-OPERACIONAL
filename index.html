@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
-<meta name="description" content="FXL Operacional simples: dashboard, contas, vendas, clientes, serviços, profissionais, importação e exportação.">
+<meta name="description" content="VVS Operacional: dashboard, contas, vendas, clientes, serviços, profissionais, importação e exportação.">
 <meta name="robots" content="noindex,nofollow">
 <meta name="theme-color" content="#18181b">
 <meta name="color-scheme" content="light">
-<title>FXL Operacional — Simples</title>
+<title>VVS Operacional</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -1798,15 +1798,57 @@ body{
   .parcel-card .nums{grid-template-columns:1fr}
 }
 
+
+/* ==========================================================================
+   PATCH KANBAN — 7 COLUNAS SEM QUEBRA
+   Mantém Fechado perdido imediatamente ao lado de Fechado ganho em todos os
+   formatos de tela. Não altera lógica, dados ou design visual.
+   ========================================================================== */
+.kanban-board{
+  display:grid !important;
+  grid-template-columns:repeat(7,minmax(245px,1fr)) !important;
+  grid-auto-flow:column !important;
+  grid-auto-columns:minmax(245px,1fr) !important;
+  overflow-x:auto !important;
+  overflow-y:visible !important;
+  align-items:start !important;
+  flex-wrap:nowrap !important;
+}
+
+.kanban-col{
+  min-width:0 !important;
+}
+
+@media(max-width:1180px){
+  .kanban-board{
+    grid-template-columns:repeat(7,minmax(245px,78vw)) !important;
+    grid-auto-columns:minmax(245px,78vw) !important;
+  }
+}
+
+@media(max-width:760px){
+  .kanban-board{
+    grid-template-columns:repeat(7,minmax(250px,86vw)) !important;
+    grid-auto-columns:minmax(250px,86vw) !important;
+  }
+}
+
+@media(max-width:420px){
+  .kanban-board{
+    grid-template-columns:repeat(7,minmax(240px,88vw)) !important;
+    grid-auto-columns:minmax(240px,88vw) !important;
+  }
+}
+
 </style>
 </head>
 <body>
 <div class="app" id="app">
   <aside class="side" aria-label="Navegação principal">
     <div class="side-top">
-      <div class="brand" aria-label="FXL Operacional">
-        FXL
-        <small>Operacional simples</small>
+      <div class="brand" aria-label="VVS Operacional">
+        VVS
+        <small>Operacional</small>
       </div>
       <button class="collapse-btn" id="btnCollapse" type="button" title="Encolher menu" aria-label="Encolher menu">‹</button>
     </div>
@@ -8052,5 +8094,173 @@ function render(){
 })();
 
 </script>
+
+/* ==========================================================================
+   PATCH SIDEBAR COLLAPSE GLOBAL — VVS Operacional
+   Objetivo: o botão de recolher funciona em desktop, tablet e mobile.
+   Desktop: recolhe/expande a sidebar em rail.
+   Mobile/tablet: fecha o drawer lateral aberto, sem quebrar navegação.
+   ========================================================================== */
+<style id="vvs-sidebar-collapse-global-css">
+@media (max-width:900px){
+  .side .collapse-btn{
+    display:grid !important;
+    visibility:visible !important;
+    opacity:1 !important;
+    transform:none !important;
+  }
+  body.nav-open .side{
+    transform:translateX(0) !important;
+  }
+}
+@media (min-width:901px){
+  .app.is-collapsed .side .collapse-btn{
+    transform:rotate(180deg) !important;
+  }
+}
+</style>
+<script id="vvs-sidebar-collapse-global-js">
+(function(){
+  'use strict';
+
+  const PREF_KEYS = [
+    'fxl_operacional_simples_prefs',
+    'vvs_operacional_simples_prefs',
+    'vvs_operacional_prefs'
+  ];
+
+  function $(selector){ return document.querySelector(selector); }
+  function isMobileShell(){
+    return window.matchMedia('(max-width: 900px)').matches;
+  }
+
+  function readPrefs(){
+    for(const key of PREF_KEYS){
+      try{
+        const raw = localStorage.getItem(key);
+        if(raw) return { key, value: JSON.parse(raw) || {} };
+      }catch(_){}
+    }
+    return { key: PREF_KEYS[0], value: {} };
+  }
+
+  function saveCollapsed(collapsed){
+    const pref = readPrefs();
+    pref.value.collapsed = !!collapsed;
+    try{ localStorage.setItem(pref.key, JSON.stringify(pref.value)); }catch(_){}
+  }
+
+  function syncButtonState(){
+    const app = $('#app');
+    const btn = $('#btnCollapse');
+    const mobileBtn = $('#btnMobileMenu');
+    if(!app || !btn) return;
+
+    if(isMobileShell()){
+      btn.setAttribute('title', 'Fechar menu');
+      btn.setAttribute('aria-label', 'Fechar menu lateral');
+      btn.setAttribute('aria-expanded', document.body.classList.contains('nav-open') ? 'true' : 'false');
+      btn.textContent = '‹';
+      if(mobileBtn) mobileBtn.setAttribute('aria-expanded', document.body.classList.contains('nav-open') ? 'true' : 'false');
+      return;
+    }
+
+    const collapsed = app.classList.contains('is-collapsed');
+    btn.setAttribute('title', collapsed ? 'Expandir menu' : 'Encolher menu');
+    btn.setAttribute('aria-label', collapsed ? 'Expandir menu lateral' : 'Encolher menu lateral');
+    btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    btn.textContent = '‹';
+  }
+
+  function closeMobileNav(){
+    document.body.classList.remove('nav-open');
+    const mobileBtn = $('#btnMobileMenu');
+    if(mobileBtn) mobileBtn.setAttribute('aria-expanded', 'false');
+    syncButtonState();
+  }
+
+  function openMobileNav(){
+    document.body.classList.add('nav-open');
+    const mobileBtn = $('#btnMobileMenu');
+    if(mobileBtn) mobileBtn.setAttribute('aria-expanded', 'true');
+    syncButtonState();
+  }
+
+  function toggleSidebar(){
+    const app = $('#app');
+    if(!app) return;
+
+    if(isMobileShell()){
+      closeMobileNav();
+      return;
+    }
+
+    app.classList.toggle('is-collapsed');
+    saveCollapsed(app.classList.contains('is-collapsed'));
+    syncButtonState();
+  }
+
+  function boot(){
+    const app = $('#app');
+    const collapseBtn = $('#btnCollapse');
+    const mobileBtn = $('#btnMobileMenu');
+    const scrim = $('#scrim');
+
+    if(!app || !collapseBtn) return;
+
+    collapseBtn.onclick = function(ev){
+      ev.preventDefault();
+      ev.stopPropagation();
+      toggleSidebar();
+    };
+
+    if(mobileBtn){
+      mobileBtn.onclick = function(ev){
+        ev.preventDefault();
+        ev.stopPropagation();
+        document.body.classList.contains('nav-open') ? closeMobileNav() : openMobileNav();
+      };
+    }
+
+    if(scrim){
+      const previous = scrim.onclick;
+      scrim.onclick = function(ev){
+        if(typeof previous === 'function') previous.call(this, ev);
+        closeMobileNav();
+      };
+    }
+
+    document.addEventListener('keydown', function(ev){
+      if(ev.key === 'Escape') closeMobileNav();
+    }, true);
+
+    window.addEventListener('resize', function(){
+      if(!isMobileShell()) closeMobileNav();
+      syncButtonState();
+    });
+
+    document.querySelectorAll('.nav[data-route]').forEach(function(item){
+      item.addEventListener('click', function(){
+        if(isMobileShell()) setTimeout(closeMobileNav, 0);
+      });
+    });
+
+    syncButtonState();
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', boot);
+  }else{
+    boot();
+  }
+
+  window.__VVS_SIDEBAR_COLLAPSE_GLOBAL__ = {
+    ok:true,
+    version:'sidebar-collapse-all-viewports-v1',
+    checkedAt:new Date().toISOString()
+  };
+})();
+</script>
+
 </body>
 </html>
