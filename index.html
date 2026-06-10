@@ -1856,6 +1856,548 @@ body{
 @media(max-width:900px){.sync-health-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:620px){.sync-health-grid{grid-template-columns:1fr}.sync-actions-extra .btn{width:100%}}
 
+
+/* ==========================================================================
+   CENTRAL DE AÇÃO — produtividade diária sem BI pesado
+   ========================================================================== */
+.action-summary{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:14px;
+  margin-bottom:16px;
+}
+.action-card{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:var(--r);
+  box-shadow:var(--shadow);
+  padding:15px 16px;
+  min-width:0;
+}
+.action-card .k{
+  font-size:11px;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:var(--ink-2);
+}
+.action-card .v{
+  font-family:'JetBrains Mono',monospace;
+  font-size:24px;
+  margin-top:4px;
+  color:var(--ink);
+}
+.action-card .s{
+  font-size:12px;
+  color:var(--ink-2);
+  margin-top:2px;
+}
+.action-layout{
+  display:grid;
+  grid-template-columns:minmax(0,1.3fr) minmax(320px,.7fr);
+  gap:16px;
+  align-items:start;
+}
+.action-section{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:var(--r);
+  box-shadow:var(--shadow);
+  padding:16px;
+  margin-bottom:16px;
+  min-width:0;
+}
+.action-section-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:12px;
+}
+.action-section h3{
+  font-family:'Archivo',sans-serif;
+  font-size:14px;
+  margin:0;
+}
+.action-section p{
+  color:var(--ink-2);
+  font-size:12px;
+  margin-top:2px;
+}
+.action-list{
+  display:grid;
+  gap:8px;
+}
+.action-row{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:10px;
+  align-items:center;
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:var(--r-sm);
+  padding:10px 12px;
+  min-width:0;
+}
+.action-row-main{
+  min-width:0;
+}
+.action-row strong{
+  display:block;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-size:13px;
+}
+.action-row small{
+  display:block;
+  color:var(--ink-2);
+  margin-top:2px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.action-row-actions{
+  display:flex;
+  gap:6px;
+  align-items:center;
+  justify-content:flex-end;
+  flex-wrap:wrap;
+}
+.action-priority{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  font-size:11px;
+  font-weight:700;
+  border-radius:999px;
+  padding:4px 8px;
+  white-space:nowrap;
+}
+.action-priority.high{background:var(--red-l);color:var(--red)}
+.action-priority.medium{background:var(--amber-l);color:var(--amber)}
+.action-priority.low{background:var(--teal-l);color:var(--teal-d)}
+.action-quick{
+  display:grid;
+  gap:8px;
+}
+.action-quick .btn{
+  width:100%;
+  justify-content:flex-start;
+}
+@media(max-width:1100px){
+  .action-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .action-layout{grid-template-columns:1fr}
+}
+@media(max-width:760px){
+  .action-summary{grid-template-columns:1fr}
+  .action-row{
+    grid-template-columns:1fr;
+  }
+  .action-row-actions{
+    justify-content:flex-start;
+  }
+}
+
+
+/* ==========================================================================
+   PATCH VVS — Fluidez de scroll + adaptação por zoom/dispositivo
+   Objetivo: manter App Shell estável, scroll previsível e proporção fluida sem
+   alterar regra de negócio, Supabase, Kanban ou financeiro.
+   ========================================================================== */
+
+:root{
+  --vvs-fluid-page-x:clamp(14px, 2.4vw, 38px);
+  --vvs-fluid-page-y:clamp(14px, 2.2vh, 30px);
+  --vvs-touch:44px;
+}
+
+html{
+  height:100%;
+  overflow:hidden !important;
+  text-size-adjust:100%;
+  -webkit-text-size-adjust:100%;
+}
+
+body{
+  height:100%;
+  min-height:100%;
+  overflow:hidden !important;
+  overscroll-behavior:none;
+}
+
+.app{
+  width:100%;
+  height:100dvh !important;
+  min-height:100dvh !important;
+  max-height:100dvh !important;
+  overflow:hidden !important;
+  min-width:0 !important;
+  grid-template-columns:var(--sidebar-w) minmax(0,1fr);
+}
+
+.app.is-collapsed{
+  grid-template-columns:var(--sidebar-collapsed) minmax(0,1fr);
+}
+
+.side{
+  height:100dvh !important;
+  max-height:100dvh !important;
+  overflow-y:auto !important;
+  overflow-x:hidden !important;
+  overscroll-behavior:contain;
+  scrollbar-gutter:stable;
+  -webkit-overflow-scrolling:touch;
+}
+
+.main{
+  width:100% !important;
+  max-width:none !important;
+  min-width:0 !important;
+  height:100dvh !important;
+  max-height:100dvh !important;
+  overflow-y:auto !important;
+  overflow-x:hidden !important;
+  padding:var(--vvs-fluid-page-y) var(--vvs-fluid-page-x) !important;
+  overscroll-behavior:contain;
+  scrollbar-gutter:stable;
+  scroll-behavior:auto;
+  -webkit-overflow-scrolling:touch;
+}
+
+.topline{
+  position:relative !important;
+  top:auto !important;
+  z-index:1 !important;
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:clamp(10px, 1.6vw, 18px);
+}
+
+.top-copy{
+  min-width:min(100%, 280px);
+  flex:1 1 320px;
+}
+
+.user{
+  flex:0 1 auto;
+}
+
+.page-shell,
+#content{
+  min-width:0 !important;
+  width:100%;
+  max-width:100%;
+  container-type:inline-size;
+  padding-bottom:clamp(18px, 5vh, 54px);
+}
+
+.page-header,
+.panel-head,
+.toolbar,
+.commercial-head,
+.finance-quickbar,
+.followups-toolbar{
+  min-width:0 !important;
+  flex-wrap:wrap !important;
+}
+
+.page-title,
+.page-actions,
+.tool-left,
+.tool-right{
+  min-width:0 !important;
+}
+
+.grid,
+.metrics,
+.split,
+.row2,
+.row3,
+.chart-grid,
+.finance-split,
+.finance-kpi-grid,
+.finance-mini,
+.finance-detail-grid,
+.service-summary-grid,
+.sale-summary-grid{
+  min-width:0 !important;
+}
+
+.metrics,
+.finance-kpi-grid{
+  grid-template-columns:repeat(auto-fit, minmax(min(220px,100%), 1fr)) !important;
+}
+
+.row2{
+  grid-template-columns:repeat(auto-fit, minmax(min(280px,100%), 1fr)) !important;
+}
+
+.row3,
+.sale-summary-grid,
+.finance-preview-grid{
+  grid-template-columns:repeat(auto-fit, minmax(min(210px,100%), 1fr)) !important;
+}
+
+.split,
+.finance-split,
+.chart-grid{
+  grid-template-columns:repeat(auto-fit, minmax(min(420px,100%), 1fr)) !important;
+}
+
+.metric,
+.panel,
+.item,
+.chart-card,
+.finance-preview-card{
+  min-width:0 !important;
+  overflow-wrap:anywhere;
+}
+
+.table-scroll{
+  width:100%;
+  max-width:100%;
+  min-width:0 !important;
+  overflow:auto !important;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-gutter:stable;
+}
+
+.kanban-shell{
+  min-width:0 !important;
+  max-width:100%;
+}
+
+.kanban-board{
+  width:100%;
+  max-width:100%;
+  display:grid !important;
+  grid-auto-flow:column;
+  grid-auto-columns:minmax(clamp(236px, 24vw, 310px), 1fr);
+  grid-template-columns:none !important;
+  overflow-x:auto !important;
+  overflow-y:hidden !important;
+  overscroll-behavior-inline:contain;
+  -webkit-overflow-scrolling:touch;
+  scroll-snap-type:x proximity;
+  padding-bottom:12px;
+}
+
+.kanban-col{
+  min-width:0 !important;
+  scroll-snap-align:start;
+}
+
+.filter-pop,
+.client-suggest-list{
+  max-width:calc(100vw - 24px) !important;
+  max-height:min(72dvh, 520px) !important;
+  overflow:auto !important;
+}
+
+.modal{
+  width:min(920px, calc(100vw - 28px)) !important;
+  max-width:calc(100vw - 28px) !important;
+  max-height:calc(100dvh - 28px) !important;
+  inset:14px max(14px, calc((100vw - 920px)/2)) !important;
+}
+
+.mbody{
+  min-width:0 !important;
+  overflow:auto !important;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+}
+
+button,
+.btn,
+.nav,
+.inline-input,
+.fld input,
+.fld select,
+.fld textarea{
+  min-height:min(var(--vvs-touch), 3.25rem);
+}
+
+.btn.sm{
+  min-height:34px;
+}
+
+@media(max-width:900px){
+  .app,
+  .app.is-collapsed{
+    grid-template-columns:minmax(0,1fr) !important;
+  }
+
+  .side{
+    position:fixed !important;
+    inset:0 auto 0 0 !important;
+    width:min(86vw, 330px) !important;
+    height:100dvh !important;
+    max-height:100dvh !important;
+    z-index:80 !important;
+  }
+
+  .main{
+    height:100dvh !important;
+    max-height:100dvh !important;
+    padding:clamp(12px, 2.2vh, 20px) clamp(12px, 3.4vw, 24px) !important;
+  }
+
+  .topline{
+    display:grid !important;
+    grid-template-columns:auto minmax(0,1fr);
+    align-items:start;
+  }
+
+  .topline .user{
+    grid-column:1 / -1;
+    width:100%;
+    text-align:left;
+  }
+
+  .page-actions,
+  .tool-left,
+  .tool-right,
+  .toolbar{
+    width:100%;
+    align-items:stretch;
+  }
+
+  .page-actions > *,
+  .tool-left > *,
+  .tool-right > *,
+  .toolbar > *{
+    max-width:100%;
+  }
+}
+
+@media(max-width:760px){
+  .main{
+    padding:12px !important;
+  }
+
+  .topline{
+    margin-bottom:14px;
+    padding-bottom:12px;
+  }
+
+  .topline h1{
+    font-size:clamp(22px, 7vw, 27px);
+  }
+
+  .page-title h2{
+    font-size:clamp(20px, 6.4vw, 24px);
+  }
+
+  .panel,
+  .metric{
+    padding:14px !important;
+  }
+
+  .modal{
+    inset:0 !important;
+    width:100vw !important;
+    max-width:100vw !important;
+    height:100dvh !important;
+    max-height:100dvh !important;
+    border-radius:0 !important;
+  }
+
+  .mhead,
+  .mbody,
+  .mfoot{
+    padding-left:16px !important;
+    padding-right:16px !important;
+  }
+
+  .kanban-board{
+    grid-auto-columns:minmax(min(86vw, 310px), 86vw);
+  }
+}
+
+@media(max-width:420px){
+  .main{
+    padding:10px !important;
+  }
+
+  .btn,
+  .inline-input{
+    width:100%;
+  }
+}
+
+/* Adaptação para zoom alto ou telas baixas: evita elementos presos e melhora alcance */
+@media(max-height:680px){
+  .main{
+    padding-top:12px !important;
+    padding-bottom:12px !important;
+  }
+
+  .topline{
+    margin-bottom:12px;
+    padding-bottom:10px;
+  }
+
+  .metric{
+    padding:12px 14px !important;
+  }
+}
+
+
+/* ==========================================================================
+   PERFORMANCE POR SERVIÇO — tela enxuta para decisão sem BI pesado
+   ========================================================================== */
+.perf-insights{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:12px;
+  margin-bottom:16px;
+}
+.perf-insight{
+  border:1px solid var(--line);
+  background:#fff;
+  border-radius:var(--r);
+  padding:14px;
+  min-width:0;
+}
+.perf-insight small{
+  display:block;
+  color:var(--ink-2);
+  font-size:11px;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  margin-bottom:4px;
+}
+.perf-insight strong{
+  display:block;
+  font-size:15px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.perf-insight span{
+  display:block;
+  color:var(--ink-2);
+  margin-top:3px;
+  font-size:12px;
+}
+.perf-action{
+  font-size:12px;
+  line-height:1.35;
+  color:var(--ink-2);
+  max-width:260px;
+}
+.perf-action.ok{color:var(--green)}
+.perf-action.warn{color:var(--amber)}
+.perf-action.bad{color:var(--red)}
+@media(max-width:900px){
+  .perf-insights{grid-template-columns:1fr}
+  .perf-action{max-width:none}
+}
+
 </style>
 </head>
 <body>
@@ -1871,7 +2413,8 @@ body{
 
     <div class="navgrp">
       <span>Principal</span>
-      <button class="nav active" data-route="dashboard" type="button"><span class="ico">◈</span><span class="txt">Dashboard</span></button>
+      <button class="nav active" data-route="hoje" type="button"><span class="ico">☑</span><span class="txt">Hoje</span></button>
+      <button class="nav" data-route="dashboard" type="button"><span class="ico">◈</span><span class="txt">Dashboard</span></button>
       <button class="nav" data-route="kanban" type="button"><span class="ico">▦</span><span class="txt">Kanban</span></button>
     </div>
 
@@ -1887,6 +2430,7 @@ body{
       <span>Base de dados</span>
       <button class="nav" data-route="clientes" type="button"><span class="ico">●</span><span class="txt">Clientes</span></button>
       <button class="nav" data-route="servicos" type="button"><span class="ico">■</span><span class="txt">Serviços</span></button>
+      <button class="nav" data-route="performance_servicos" type="button"><span class="ico">▣</span><span class="txt">Performance por serviço</span></button>
       <button class="nav" data-route="profissionais" type="button"><span class="ico">▲</span><span class="txt">Profissionais</span></button>
     </div>
 
@@ -1902,8 +2446,8 @@ body{
     <div class="topline">
       <button class="mobile-menu-btn" id="btnMobileMenu" type="button" aria-label="Abrir menu" aria-expanded="false">☰</button>
       <div class="top-copy">
-        <h1 id="topTitle">Dashboard</h1>
-        <p id="topDesc">Visão simples do financeiro, vendas e operação.</p>
+        <h1 id="topTitle">Hoje</h1>
+        <p id="topDesc">Central de ação diária do time.</p>
       </div>
       <div class="user">
         <b>Operação local</b>
@@ -1966,7 +2510,7 @@ body{
   const byId = (arr, id) => arr.find(x => x.id === id);
 
   const state = {
-    route:'dashboard',
+    route:'hoje',
     filters:{
       kanban:{q:'',status:'',vendedor:'',servico:'',min:'',max:''},
       followups:{periodo:'month',vendedor:'',view:'lista'},
@@ -1975,6 +2519,7 @@ body{
       vendas:{q:'',status:'',from:'',to:''},
       clientes:{q:'',status:''},
       servicos:{q:'',status:''},
+      performance_servicos:{q:'',from:'',to:'',serviceId:'',sort:'resultado_desc'},
       profissionais:{q:'',status:''}
     },
     chartModes:{
@@ -2351,6 +2896,289 @@ body{
     const resultadoCaixaPrevisto = round2(recebido + receberAberto - pagarAberto);
     return {receita,recebido,receberAberto,pago,pagarAberto,saldoPrev,resultadoCaixaPrevisto,custoVendas,resultadoCompetencia,vendas:vendasFechadas.length,clientes:DB.clientes.filter(c=>c.status==='ativo').length};
   }
+
+
+  function isoToLocalDate(value){
+    if(!value) return null;
+    const v = String(value).slice(0,10);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
+    const [y,m,d] = v.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  function daysFromToday(value){
+    const d = isoToLocalDate(value);
+    if(!d) return null;
+    const t = isoToLocalDate(todayISO());
+    return Math.round((d.getTime() - t.getTime()) / 86400000);
+  }
+
+  function compactDateWithDistance(value){
+    const diff = daysFromToday(value);
+    if(diff === null) return 'sem data';
+    if(diff < 0) return `${brDate(value)} · ${Math.abs(diff)} dia(s) atrasado`;
+    if(diff === 0) return `${brDate(value)} · hoje`;
+    return `${brDate(value)} · em ${diff} dia(s)`;
+  }
+
+  function opportunityLastActivity(o){
+    return o?.atualizadoEm || o?.dataEntrada || o?.criadoEm || '';
+  }
+
+  function collectDailyActions(){
+    const today = todayISO();
+    const opportunities = Array.isArray(DB.oportunidades) ? DB.oportunidades : [];
+    const contas = Array.isArray(DB.contas) ? DB.contas : [];
+    const vendas = Array.isArray(DB.vendas) ? DB.vendas : [];
+
+    const followups = [];
+    opportunities.forEach(o => {
+      if(['fechado_ganho','fechado_perdido'].includes(o.etapa)) return;
+      const list = Array.isArray(o.followups) && o.followups.length
+        ? o.followups
+        : (o.followup ? [{id:`legacy_${o.id}`, titulo:'Follow-up', data:o.followup, hora:'', status:'pendente', legacy:true}] : []);
+      list.forEach(f => {
+        if(['concluido','cancelado'].includes(String(f.status || '').toLowerCase())) return;
+        const diff = daysFromToday(f.data);
+        if(diff !== null && diff <= 0){
+          followups.push({
+            type:'followup',
+            id:f.id,
+            oppId:o.id,
+            priority:diff < 0 ? 'high' : 'medium',
+            date:f.data,
+            title:f.titulo || 'Follow-up',
+            main:o.contato || o.empresa || 'Oportunidade',
+            sub:`${stageLabel(o.etapa)} · ${compactDateWithDistance(f.data)}${o.valor ? ' · ' + money(o.valor) : ''}`
+          });
+        }
+      });
+    });
+
+    const receberHoje = contas
+      .filter(c => c.tipo === 'receber' && c.status === 'aberto')
+      .map(c => Object.assign({}, c, {diff:daysFromToday(c.vencimento)}))
+      .filter(c => c.diff !== null && c.diff <= 0)
+      .sort((a,b)=>a.diff-b.diff || Number(b.valor||0)-Number(a.valor||0));
+
+    const pagarHoje = contas
+      .filter(c => c.tipo === 'pagar' && c.status === 'aberto')
+      .map(c => Object.assign({}, c, {diff:daysFromToday(c.vencimento)}))
+      .filter(c => c.diff !== null && c.diff <= 0)
+      .sort((a,b)=>a.diff-b.diff || Number(b.valor||0)-Number(a.valor||0));
+
+    const paradas = opportunities
+      .filter(o => !['fechado_ganho','fechado_perdido'].includes(o.etapa))
+      .map(o => Object.assign({}, o, {idle:Math.abs(Math.min(daysFromToday(opportunityLastActivity(o)) || 0, 0))}))
+      .filter(o => o.idle >= 7)
+      .sort((a,b)=>b.idle-a.idle || Number(b.valor||0)-Number(a.valor||0))
+      .slice(0,8);
+
+    const vendasPendentes = vendas
+      .map(v => {
+        const vinculadas = contas.filter(c => c.vendaId === v.id || c.saleId === v.id);
+        const receberAberto = vinculadas.filter(c => c.tipo === 'receber' && c.status === 'aberto').reduce((s,c)=>s+Number(c.valor||0),0);
+        const pagarAberto = vinculadas.filter(c => c.tipo === 'pagar' && c.status === 'aberto').reduce((s,c)=>s+Number(c.valor||0),0);
+        return Object.assign({}, v, {receberAberto, pagarAberto});
+      })
+      .filter(v => v.receberAberto > 0 || v.pagarAberto > 0)
+      .sort((a,b)=>Number(b.receberAberto + b.pagarAberto)-Number(a.receberAberto + a.pagarAberto))
+      .slice(0,6);
+
+    return {
+      followups: followups.sort((a,b)=>String(a.date).localeCompare(String(b.date))).slice(0,10),
+      receberHoje: receberHoje.slice(0,10),
+      pagarHoje: pagarHoje.slice(0,10),
+      paradas,
+      vendasPendentes
+    };
+  }
+
+  function renderActionRows(items, type){
+    if(!items.length){
+      return `<div class="empty">Nenhuma ação crítica neste bloco.</div>`;
+    }
+    return `<div class="action-list">${items.map(item => {
+      if(type === 'followups'){
+        return `
+          <article class="action-row">
+            <div class="action-row-main">
+              <strong>${escapeHTML(item.main)}</strong>
+              <small>${escapeHTML(item.title)} · ${escapeHTML(item.sub)}</small>
+            </div>
+            <div class="action-row-actions">
+              <span class="action-priority ${item.priority}">${item.priority === 'high' ? 'Atrasado' : 'Hoje'}</span>
+              <button class="btn sm ghost" type="button" data-go="kanban">Kanban</button>
+              <button class="btn sm teal" type="button" data-complete-followup="${escapeHTML(item.oppId)}|${escapeHTML(item.id)}">Concluir</button>
+            </div>
+          </article>`;
+      }
+      if(type === 'receber' || type === 'pagar'){
+        const isReceber = type === 'receber';
+        const priority = item.diff < 0 ? 'high' : 'medium';
+        return `
+          <article class="action-row">
+            <div class="action-row-main">
+              <strong>${escapeHTML(item.descricao || (isReceber ? 'Conta a receber' : 'Conta a pagar'))}</strong>
+              <small>${compactDateWithDistance(item.vencimento)} · ${money(item.valor)}${item.categoria ? ' · ' + escapeHTML(item.categoria) : ''}</small>
+            </div>
+            <div class="action-row-actions">
+              <span class="action-priority ${priority}">${item.diff < 0 ? 'Vencido' : 'Hoje'}</span>
+              <button class="btn sm ghost" type="button" data-go="${isReceber ? 'receber' : 'pagar'}">Abrir</button>
+              <button class="btn sm teal" type="button" data-pay-now="${escapeHTML(item.id)}">${isReceber ? 'Receber' : 'Pagar'}</button>
+            </div>
+          </article>`;
+      }
+      if(type === 'paradas'){
+        return `
+          <article class="action-row">
+            <div class="action-row-main">
+              <strong>${escapeHTML(item.contato || item.empresa || 'Oportunidade')}</strong>
+              <small>${escapeHTML(stageLabel(item.etapa))} · parada há ${item.idle} dia(s)${item.valor ? ' · ' + money(item.valor) : ''}</small>
+            </div>
+            <div class="action-row-actions">
+              <span class="action-priority low">Revisar</span>
+              <button class="btn sm ghost" type="button" data-go="kanban">Abrir Kanban</button>
+            </div>
+          </article>`;
+      }
+      return `
+        <article class="action-row">
+          <div class="action-row-main">
+            <strong>${escapeHTML(item.clienteNome || item.cliente || item.id || 'Venda')}</strong>
+            <small>A receber ${money(item.receberAberto)} · A pagar ${money(item.pagarAberto)}</small>
+          </div>
+          <div class="action-row-actions">
+            <span class="action-priority medium">Pendência</span>
+            <button class="btn sm ghost" type="button" data-go="vendas">Abrir vendas</button>
+          </div>
+        </article>`;
+    }).join('')}</div>`;
+  }
+
+  function renderHoje(){
+    pageMeta('Hoje','Central de ação diária para aumentar produtividade sem criar análise excessiva.');
+    const actions = collectDailyActions();
+    const totalFollow = actions.followups.length;
+    const totalReceber = actions.receberHoje.reduce((s,c)=>s+Number(c.valor||0),0);
+    const totalPagar = actions.pagarHoje.reduce((s,c)=>s+Number(c.valor||0),0);
+    const totalParadas = actions.paradas.length;
+    $('#content').innerHTML = `
+      <div class="page-header">
+        <div class="page-title">
+          <h2>Hoje</h2>
+          <p>Prioridades do dia: follow-ups, cobranças, pagamentos e oportunidades paradas.</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn teal" type="button" data-go="kanban">Abrir Kanban</button>
+          <button class="btn ghost" type="button" data-go="receber">Recebimentos</button>
+        </div>
+      </div>
+
+      <div class="action-summary">
+        <article class="action-card">
+          <div class="k">Follow-ups</div>
+          <div class="v">${totalFollow}</div>
+          <div class="s">Atrasados ou para hoje</div>
+        </article>
+        <article class="action-card">
+          <div class="k">A receber</div>
+          <div class="v">${money(totalReceber)}</div>
+          <div class="s">Vencido ou vencendo hoje</div>
+        </article>
+        <article class="action-card">
+          <div class="k">A pagar</div>
+          <div class="v">${money(totalPagar)}</div>
+          <div class="s">Vencido ou vencendo hoje</div>
+        </article>
+        <article class="action-card">
+          <div class="k">Oportunidades paradas</div>
+          <div class="v">${totalParadas}</div>
+          <div class="s">Sem movimento há 7+ dias</div>
+        </article>
+      </div>
+
+      <div class="action-layout">
+        <div>
+          <section class="action-section">
+            <div class="action-section-head">
+              <div>
+                <h3>Follow-ups críticos</h3>
+                <p>Conclua ou abra o Kanban para atualizar a oportunidade.</p>
+              </div>
+            </div>
+            ${renderActionRows(actions.followups, 'followups')}
+          </section>
+
+          <section class="action-section">
+            <div class="action-section-head">
+              <div>
+                <h3>Recebimentos de atenção</h3>
+                <p>Contas vencidas ou com vencimento hoje.</p>
+              </div>
+            </div>
+            ${renderActionRows(actions.receberHoje, 'receber')}
+          </section>
+
+          <section class="action-section">
+            <div class="action-section-head">
+              <div>
+                <h3>Pagamentos de atenção</h3>
+                <p>Compromissos vencidos ou com vencimento hoje.</p>
+              </div>
+            </div>
+            ${renderActionRows(actions.pagarHoje, 'pagar')}
+          </section>
+        </div>
+
+        <aside>
+          <section class="action-section">
+            <div class="action-section-head">
+              <div>
+                <h3>Ações rápidas</h3>
+                <p>Acesse as rotinas mais usadas sem procurar no menu.</p>
+              </div>
+            </div>
+            <div class="action-quick">
+              <button class="btn" type="button" data-go="kanban">▦ Gerenciar oportunidades</button>
+              <button class="btn ghost" type="button" data-go="vendas">◇ Registrar / revisar vendas</button>
+              <button class="btn ghost" type="button" data-go="receber">↓ Contas a receber</button>
+              <button class="btn ghost" type="button" data-go="pagar">↑ Contas a pagar</button>
+              <button class="btn ghost" type="button" data-go="dashboard">◈ Ver dashboard</button>
+            </div>
+          </section>
+
+          <section class="action-section">
+            <div class="action-section-head">
+              <div>
+                <h3>Oportunidades paradas</h3>
+                <p>Leads sem atualização recente.</p>
+              </div>
+            </div>
+            ${renderActionRows(actions.paradas, 'paradas')}
+          </section>
+
+          <section class="action-section">
+            <div class="action-section-head">
+              <div>
+                <h3>Vendas com pendência</h3>
+                <p>Vendas que ainda têm contas abertas vinculadas.</p>
+              </div>
+            </div>
+            ${renderActionRows(actions.vendasPendentes, 'vendasPendentes')}
+          </section>
+        </aside>
+      </div>
+    `;
+
+    $$('[data-go]', $('#content')).forEach(btn => btn.onclick = () => setRoute(btn.dataset.go));
+    $$('[data-pay-now]', $('#content')).forEach(btn => btn.onclick = () => payConta(btn.dataset.payNow));
+    $$('[data-complete-followup]', $('#content')).forEach(btn => btn.onclick = () => {
+      const [oppId, followId] = String(btn.dataset.completeFollowup || '').split('|');
+      completeFollowup(oppId, followId);
+    });
+  }
+
 
   function renderDashboard(){
     pageMeta('Dashboard','Visão simples do financeiro, vendas e operação.');
@@ -3185,16 +4013,32 @@ body{
     return ['var(--teal)','var(--amber)','var(--red)','var(--green)','var(--ink-2)'][index % 5];
   }
 
+  function costProfessionalsDatalist(){
+    const professionals = (DB.profissionais || [])
+      .filter(p => String(p.status || 'ativo') !== 'inativo')
+      .sort((a,b)=>String(a.nome || '').localeCompare(String(b.nome || '')));
+    return `<datalist id="vvsCostProfessionalsList">
+      ${professionals.map(p => `<option value="${escapeHTML(p.nome || '')}" label="${escapeHTML([p.funcao,p.email].filter(Boolean).join(' · '))}"></option>`).join('')}
+    </datalist>`;
+  }
+
+  function matchProfessionalByName(name){
+    const target = normalizeText(name || '');
+    if(!target) return null;
+    return (DB.profissionais || []).find(p => normalizeText(p.nome || '') === target) || null;
+  }
+
   function renderCostRow(c, index){
     const cost = normalizeOpportunityCost(c,index);
     return `<div class="opp-cost-row" data-cost-row>
       <div class="fld"><label>Nome</label><input data-cost-field="descricao" value="${escapeHTML(cost.descricao)}" placeholder="Nome do custo"></div>
       <div class="fld"><label>Categoria</label><input data-cost-field="categoria" value="${escapeHTML(cost.categoria)}" placeholder="Categoria"></div>
-      <div class="fld"><label>Responsável</label><input data-cost-field="responsavel" value="${escapeHTML(cost.responsavel)}" placeholder="Responsável"></div>
+      <div class="fld"><label>Responsável</label><input data-cost-field="responsavel" list="vvsCostProfessionalsList" value="${escapeHTML(cost.responsavel)}" placeholder="Profissional ou custo diverso"></div>
       <div class="fld"><label>Valor</label><input data-cost-field="valor" type="number" step="0.01" value="${Number(cost.valor || 0)}"></div>
       <button class="btn sm ghost" type="button" data-remove-cost title="Remover custo">🗑</button>
       <input type="hidden" data-cost-field="id" value="${escapeHTML(cost.id)}">
       <input type="hidden" data-cost-field="serviceCostId" value="${escapeHTML(cost.serviceCostId || '')}">
+      <input type="hidden" data-cost-field="profissionalId" value="${escapeHTML(cost.profissionalId || '')}">
       <input type="hidden" data-cost-field="valorUnitario" value="${Number(cost.valorUnitario || cost.valor || 0)}">
       <input type="hidden" data-cost-field="quantidadeAplicada" value="${Number(cost.quantidadeAplicada || 1)}">
       <input type="hidden" data-cost-field="multiplicaPorQuantidade" value="${cost.multiplicaPorQuantidade ? 'true' : 'false'}">
@@ -3214,6 +4058,7 @@ body{
         descricao:read('descricao'),
         categoria:read('categoria'),
         responsavel:read('responsavel'),
+        profissionalId:(matchProfessionalByName(read('responsavel'))?.id || read('profissionalId') || ''),
         valor:Number(read('valor') || 0),
         valorUnitario:Number(read('valorUnitario') || read('valor') || 0),
         quantidadeAplicada:Number(read('quantidadeAplicada') || 1),
@@ -3386,6 +4231,7 @@ body{
        </div>
        <div class="tab-panel" data-tab-panel="costs" hidden>
         <p class="note opp-cost-note">💡 Os custos são clonados do produto/serviço quando possível e passam a ser independentes nesta oportunidade. Você pode editar, adicionar ou remover sem afetar o cadastro do serviço.</p>
+        ${costProfessionalsDatalist()}
         <div class="opp-cost-list" id="oppCostsList">
           ${activeCosts.map(renderCostRow).join('')}
         </div>
@@ -4570,6 +5416,130 @@ body{
   }
 
 
+
+  function saleHasSettledAccounts(saleId){
+    const settled = ['pago','recebido','baixado'];
+    return (DB.contas || []).some(c => c.vendaId === saleId && settled.includes(String(c.status || '').toLowerCase()));
+  }
+
+  function requestDeleteVenda(id){
+    const venda = byId(DB.vendas, id);
+    if(!venda){ toast('Venda não encontrada.'); return; }
+    const existing = (DB.audit || []).find(a => a.action === 'request-delete-sale' && a.status === 'pending' && (a.entityId === id || a.saleId === id));
+    if(existing){
+      toast('Já existe uma solicitação pendente para esta venda.');
+      setRoute('arquivos');
+      return;
+    }
+    const contasVinculadas = (DB.contas || []).filter(c => c.vendaId === id);
+    const temBaixa = saleHasSettledAccounts(id);
+    const detalhe = [
+      `Venda: ${id}`,
+      contasVinculadas.length ? `${contasVinculadas.length} conta(s) vinculada(s).` : 'Sem contas vinculadas.',
+      temBaixa ? 'Atenção: há conta baixada/paga; a aprovação ficará bloqueada até estornar a baixa.' : 'Se aprovado, a venda e contas ainda abertas serão removidas.',
+      'O código da venda ficará livre para reutilização após a aprovação.'
+    ].join(' ');
+    confirmAction('Solicitar exclusão de venda', detalhe, 'Enviar para auditoria', (reason)=>{
+      DB.audit.unshift({
+        id:uid('aud'),
+        entity:'vendas',
+        entityId:id,
+        saleId:id,
+        action:'request-delete-sale',
+        status:'pending',
+        before:JSON.parse(JSON.stringify(venda)),
+        after:null,
+        related:{
+          contasIds:contasVinculadas.map(c=>c.id),
+          oportunidadeIds:(DB.oportunidades || []).filter(o => o.vendaId === id).map(o=>o.id)
+        },
+        reason:reason || 'Venda criada incorretamente',
+        user:CURRENT_USER,
+        createdAt:new Date().toISOString()
+      });
+      DB.audit = DB.audit.slice(0,300);
+      saveDB();
+      toast('Solicitação enviada para Auditoria local.');
+      setRoute('arquivos');
+    }, true);
+  }
+
+  function approveDeleteSaleRequest(auditId){
+    const req = byId(DB.audit, auditId);
+    if(!req || req.action !== 'request-delete-sale') return;
+    const saleId = req.entityId || req.saleId;
+    const venda = byId(DB.vendas, saleId);
+    if(!venda){
+      req.status = 'rejected';
+      req.reason = `${req.reason || ''} · Venda não encontrada para exclusão.`;
+      saveDB();
+      stableRender();
+      return;
+    }
+    if(saleHasSettledAccounts(saleId)){
+      toast('Não é possível aprovar: existem contas pagas/baixadas. Estorne a baixa antes.');
+      return;
+    }
+
+    const contasVinculadas = (DB.contas || []).filter(c => c.vendaId === saleId);
+    const oportunidadesVinculadas = (DB.oportunidades || []).filter(o => o.vendaId === saleId);
+
+    if(contasVinculadas.length){
+      contasVinculadas.forEach(conta => audit('contas','delete-auto',conta,null,'Exclusão de venda aprovada: ' + saleId));
+      DB.contas = (DB.contas || []).filter(c => c.vendaId !== saleId);
+    }
+
+    if(oportunidadesVinculadas.length){
+      oportunidadesVinculadas.forEach(o => {
+        const beforeOpp = JSON.parse(JSON.stringify(o));
+        o.vendaId = '';
+        o.status = 'em_andamento';
+        o.etapa = o.stageBeforeWon || 'negociacao';
+        o.dataFechamento = '';
+        o.formaPagamento = '';
+        o.parcelas = [];
+        o.contasReceberIds = [];
+        o.contasPagarIds = [];
+        o.atualizadoEm = todayISO();
+        o.atualizadoPor = CURRENT_USER;
+        o.historico = Array.isArray(o.historico) ? o.historico : [];
+        o.historico.unshift({
+          id:uid('his'),
+          tipo:'venda-excluida-auditoria',
+          texto:`Venda ${saleId} excluída por aprovação de auditoria. Oportunidade retornou para ${stageLabel(o.etapa)}.`,
+          motivo:req.reason || 'Venda criada incorretamente',
+          createdAt:new Date().toISOString(),
+          user:CURRENT_USER
+        });
+        audit('oportunidades','unlink-sale',beforeOpp,o,'Exclusão de venda aprovada: ' + saleId);
+      });
+    }
+
+    DB.vendas = (DB.vendas || []).filter(v => v.id !== saleId);
+    req.status = 'approved';
+    req.approvedAt = new Date().toISOString();
+    req.after = null;
+    audit('vendas','delete-approved',venda,null,req.reason || 'Exclusão aprovada pela auditoria');
+
+    saveDB();
+    toast(`Venda ${saleId} excluída por auditoria. Código liberado.`);
+    stableRender();
+  }
+
+  function rejectDeleteSaleRequest(auditId){
+    const req = byId(DB.audit, auditId);
+    if(!req || req.action !== 'request-delete-sale') return;
+    confirmAction('Recusar exclusão', 'Deseja recusar esta solicitação de exclusão de venda?', 'Recusar', (reason)=>{
+      req.status = 'rejected';
+      req.rejectedAt = new Date().toISOString();
+      req.rejectReason = reason || 'Recusado na auditoria';
+      saveDB();
+      toast('Solicitação recusada.');
+      stableRender();
+    }, true);
+  }
+
+
   function closeMobileNav(){
     document.body.classList.remove('nav-open');
     const btn = $('#btnMobileMenu');
@@ -5094,6 +6064,11 @@ body{
                   <button class="btn sm teal" type="button" data-approve-reopen="${a.id}">Confirmar solicitação</button>
                   <button class="btn sm ghost" type="button" data-reject-reopen="${a.id}">Recusar pedido</button>
                 </div>` : ''}
+              ${a.action === 'request-delete-sale' && a.status === 'pending' ? `
+                <div class="actions" style="margin-top:8px">
+                  <button class="btn sm teal" type="button" data-approve-delete-sale="${a.id}">Aprovar exclusão</button>
+                  <button class="btn sm ghost" type="button" data-reject-delete-sale="${a.id}">Recusar pedido</button>
+                </div>` : ''}
             </div>
           `).join('') : `<div class="row">Nenhum registro de auditoria ainda.</div>`}
         </div>
@@ -5120,6 +6095,8 @@ body{
     });
     $$('[data-approve-reopen]').forEach(btn => btn.onclick = () => approveReopenWonRequest(btn.dataset.approveReopen));
     $$('[data-reject-reopen]').forEach(btn => btn.onclick = () => rejectReopenWonRequest(btn.dataset.rejectReopen));
+    $$('[data-approve-delete-sale]').forEach(btn => btn.onclick = () => approveDeleteSaleRequest(btn.dataset.approveDeleteSale));
+    $$('[data-reject-delete-sale]').forEach(btn => btn.onclick = () => rejectDeleteSaleRequest(btn.dataset.rejectDeleteSale));
   }
 
   function bindGlobalActions(){
@@ -5499,6 +6476,7 @@ body{
                   <td><div class="actions">
                     <button class="btn sm ghost" data-view-sale-finance="${v.id}" type="button">Ver financeiro</button>
                     <button class="btn sm ghost" data-edit-venda="${v.id}" type="button">Editar</button>
+                    <button class="btn sm red" data-request-delete-venda="${v.id}" type="button">Solicitar exclusão</button>
                   </div></td>
                 </tr>`;
               }).join('') : `<tr><td colspan="9"><div class="empty">Nenhuma venda registrada.</div></td></tr>`}
@@ -5511,6 +6489,7 @@ body{
     bindGlobalActions();
     $$('[data-view-sale-finance]').forEach(btn => btn.onclick = () => modalVendaFinanceiro(byId(DB.vendas, btn.dataset.viewSaleFinance)));
     $$('[data-edit-venda]').forEach(btn => btn.onclick = () => modalVenda(byId(DB.vendas, btn.dataset.editVenda)));
+    $$('[data-request-delete-venda]').forEach(btn => btn.onclick = () => requestDeleteVenda(btn.dataset.requestDeleteVenda));
   }
 
 
@@ -5789,7 +6768,236 @@ body{
     bindGlobalActions();
   }
 
-function render(){
+
+  function servicePerformanceRows(){
+    state.filters.performance_servicos = Object.assign({q:'',from:'',to:'',serviceId:'',sort:'resultado_desc'}, state.filters.performance_servicos || {});
+    const f = state.filters.performance_servicos;
+    const q = normalizeText(f.q || '');
+    const map = new Map();
+
+    function ensureService(id, fallbackName){
+      const key = id || ('avulso_' + normalizeText(fallbackName || 'Sem serviço'));
+      if(!map.has(key)){
+        const service = id ? byId(DB.servicos || [], id) : null;
+        map.set(key, {
+          id:key,
+          serviceId:id || '',
+          nome:service?.nome || fallbackName || 'Sem serviço vinculado',
+          categoria:service?.categoria || '',
+          vendas:0,
+          quantidade:0,
+          receita:0,
+          custos:0,
+          recebido:0,
+          aReceber:0,
+          pago:0,
+          aPagar:0,
+          resultado:0,
+          margem:0,
+          ticketMedio:0,
+          lastSale:''
+        });
+      }
+      return map.get(key);
+    }
+
+    (DB.servicos || []).forEach(s => ensureService(s.id, s.nome));
+
+    (DB.vendas || []).forEach(v => {
+      if(String(v.status || '').toLowerCase() === 'cancelado') return;
+      const date = String(v.data || v.criadoEm || '').slice(0,10);
+      if(f.from && date && date < f.from) return;
+      if(f.to && date && date > f.to) return;
+      const servico = v.servicoId ? byId(DB.servicos || [], v.servicoId) : null;
+      const nome = servico?.nome || v.servicoNome || v.servico || 'Sem serviço vinculado';
+      const row = ensureService(v.servicoId || '', nome);
+      const fin = saleFinancialSummary(v);
+      const receita = Number(fin.receita || v.valor || 0);
+      const custos = Number(fin.custos || v.custoTotal || 0);
+
+      row.vendas += 1;
+      row.quantidade += Math.max(1, Number(v.quantidade || 1));
+      row.receita += receita;
+      row.custos += custos;
+      row.recebido += Number(fin.recebido || 0);
+      row.aReceber += Number(fin.receberAberto || 0);
+      row.pago += Number(fin.pago || 0);
+      row.aPagar += Number(fin.pagarAberto || 0);
+      row.resultado += receita - custos;
+      row.lastSale = !row.lastSale || date > row.lastSale ? date : row.lastSale;
+    });
+
+    let rows = Array.from(map.values()).map(row => {
+      row.receita = round2(row.receita);
+      row.custos = round2(row.custos);
+      row.resultado = round2(row.resultado);
+      row.margem = row.receita ? round2((row.resultado / row.receita) * 100) : 0;
+      row.ticketMedio = row.vendas ? round2(row.receita / row.vendas) : 0;
+      return row;
+    });
+
+    rows = rows.filter(row => {
+      if(f.serviceId && row.serviceId !== f.serviceId) return false;
+      if(q && !normalizeText([row.nome,row.categoria].join(' ')).includes(q)) return false;
+      return row.vendas > 0 || q || f.serviceId;
+    });
+
+    const sort = f.sort || 'resultado_desc';
+    const sorters = {
+      resultado_desc:(a,b)=>b.resultado-a.resultado,
+      resultado_asc:(a,b)=>a.resultado-b.resultado,
+      receita_desc:(a,b)=>b.receita-a.receita,
+      margem_desc:(a,b)=>b.margem-a.margem,
+      vendas_desc:(a,b)=>b.vendas-a.vendas,
+      nome_asc:(a,b)=>String(a.nome).localeCompare(String(b.nome))
+    };
+    rows.sort(sorters[sort] || sorters.resultado_desc);
+    return rows;
+  }
+
+  function servicePerformanceAction(row){
+    if(!row.vendas) return {className:'warn', text:'Sem venda no período. Revisar oferta, preço ou divulgação.'};
+    if(row.resultado < 0) return {className:'bad', text:'Resultado negativo. Bloquear novas vendas até revisar custos.'};
+    if(row.receita > 0 && row.margem < 20) return {className:'bad', text:'Margem baixa. Reavaliar preço, comissão, imposto e custo operacional.'};
+    if(row.margem >= 45 && row.vendas >= 2) return {className:'ok', text:'Boa margem e recorrência. Priorizar na operação comercial.'};
+    if(row.vendas >= 2 && row.margem < 35) return {className:'warn', text:'Vende bem, mas margem moderada. Buscar ganho operacional.'};
+    return {className:'ok', text:'Operação saudável. Acompanhar volume e recebimento.'};
+  }
+
+  function renderPerformanceServicos(){
+    pageMeta('Performance por serviço','Decisão rápida sobre o que vende, o que dá resultado e o que precisa de revisão.');
+    const f = state.filters.performance_servicos = Object.assign({q:'',from:'',to:'',serviceId:'',sort:'resultado_desc'}, state.filters.performance_servicos || {});
+    const rows = servicePerformanceRows();
+    const totalReceita = rows.reduce((s,r)=>s+r.receita,0);
+    const totalCustos = rows.reduce((s,r)=>s+r.custos,0);
+    const totalResultado = rows.reduce((s,r)=>s+r.resultado,0);
+    const totalVendas = rows.reduce((s,r)=>s+r.vendas,0);
+    const margemMedia = totalReceita ? (totalResultado / totalReceita) * 100 : 0;
+    const maiorResultado = rows.filter(r=>r.vendas).sort((a,b)=>b.resultado-a.resultado)[0];
+    const maisVendido = rows.filter(r=>r.vendas).sort((a,b)=>b.quantidade-a.quantidade || b.receita-a.receita)[0];
+    const margemRuim = rows.filter(r=>r.vendas && r.receita > 0).sort((a,b)=>a.margem-b.margem)[0];
+
+    $('#content').innerHTML = `
+      <div class="page-header">
+        <div class="page-title">
+          <h2>Performance por serviço</h2>
+          <p>Tela enxuta para decidir o que priorizar, reprecificar ou revisar sem criar análise pesada.</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn ghost" data-route-go="servicos" type="button">Abrir cadastro</button>
+          <button class="btn ghost" data-route-go="vendas" type="button">Ver vendas</button>
+          <button class="btn teal" data-new="servico" type="button">Novo serviço</button>
+        </div>
+      </div>
+
+      <section class="panel">
+        <div class="toolbar">
+          <div class="tool-left">
+            <input class="inline-input" id="perfServiceQ" value="${escapeHTML(f.q || '')}" placeholder="Buscar serviço ou categoria">
+            <select class="inline-input" id="perfServiceId">
+              <option value="">Todos os serviços</option>
+              ${(DB.servicos || []).map(s=>`<option value="${escapeHTML(s.id)}" ${f.serviceId===s.id?'selected':''}>${escapeHTML(s.nome)}</option>`).join('')}
+            </select>
+            <input class="inline-input" id="perfFrom" type="date" value="${escapeHTML(f.from || '')}" aria-label="Data inicial">
+            <input class="inline-input" id="perfTo" type="date" value="${escapeHTML(f.to || '')}" aria-label="Data final">
+            <select class="inline-input" id="perfSort">
+              <option value="resultado_desc" ${f.sort==='resultado_desc'?'selected':''}>Maior resultado</option>
+              <option value="receita_desc" ${f.sort==='receita_desc'?'selected':''}>Maior receita</option>
+              <option value="margem_desc" ${f.sort==='margem_desc'?'selected':''}>Maior margem</option>
+              <option value="vendas_desc" ${f.sort==='vendas_desc'?'selected':''}>Mais vendas</option>
+              <option value="resultado_asc" ${f.sort==='resultado_asc'?'selected':''}>Menor resultado</option>
+              <option value="nome_asc" ${f.sort==='nome_asc'?'selected':''}>Nome A-Z</option>
+            </select>
+          </div>
+          <div class="tool-right">
+            <button class="btn ghost" id="perfClear" type="button">Limpar filtros</button>
+          </div>
+        </div>
+      </section>
+
+      <div class="grid metrics">
+        <article class="metric"><div class="lab">Receita</div><div class="val">${money(totalReceita)}</div><div class="sub">${totalVendas} venda(s) filtrada(s)</div></article>
+        <article class="metric"><div class="lab">Custos</div><div class="val">${money(totalCustos)}</div><div class="sub">Comissão, imposto e operação</div></article>
+        <article class="metric"><div class="lab">Resultado</div><div class="val">${money(totalResultado)}</div><div class="sub">Receita - custos</div></article>
+        <article class="metric"><div class="lab">Margem média</div><div class="val">${round2(margemMedia)}%</div><div class="sub">Sobre receita filtrada</div></article>
+      </div>
+
+      <div class="perf-insights">
+        <article class="perf-insight"><small>Melhor resultado</small><strong>${escapeHTML(maiorResultado?.nome || 'Sem dados')}</strong><span>${maiorResultado ? money(maiorResultado.resultado) + ' de resultado' : 'Cadastre vendas para medir'}</span></article>
+        <article class="perf-insight"><small>Mais vendido</small><strong>${escapeHTML(maisVendido?.nome || 'Sem dados')}</strong><span>${maisVendido ? `${maisVendido.quantidade} unidade(s) · ${money(maisVendido.receita)}` : 'Sem vendas no período'}</span></article>
+        <article class="perf-insight"><small>Atenção de margem</small><strong>${escapeHTML(margemRuim?.nome || 'Sem dados')}</strong><span>${margemRuim ? `${round2(margemRuim.margem)}% de margem` : 'Sem margem para avaliar'}</span></article>
+      </div>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h3>Serviços por resultado operacional</h3>
+          <small class="count-muted">${rows.length} serviço(s)</small>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Serviço</th>
+                <th>Categoria</th>
+                <th class="num">Vendas</th>
+                <th class="num">Qtd.</th>
+                <th class="num">Receita</th>
+                <th class="num">Custos</th>
+                <th class="num">Resultado</th>
+                <th class="num">Margem</th>
+                <th class="num">Ticket médio</th>
+                <th>Ação sugerida</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.length ? rows.map(row => {
+                const action = servicePerformanceAction(row);
+                return `<tr>
+                  <td data-label="Serviço"><strong>${escapeHTML(row.nome)}</strong><br><small>${row.lastSale ? 'Última venda: ' + brDate(row.lastSale) : 'Sem venda no período'}</small></td>
+                  <td data-label="Categoria">${escapeHTML(row.categoria || '—')}</td>
+                  <td data-label="Vendas" class="num">${row.vendas}</td>
+                  <td data-label="Qtd." class="num">${row.quantidade}</td>
+                  <td data-label="Receita" class="num">${money(row.receita)}</td>
+                  <td data-label="Custos" class="num">${money(row.custos)}</td>
+                  <td data-label="Resultado" class="num"><strong>${money(row.resultado)}</strong></td>
+                  <td data-label="Margem" class="num">${round2(row.margem)}%</td>
+                  <td data-label="Ticket médio" class="num">${money(row.ticketMedio)}</td>
+                  <td data-label="Ação sugerida"><div class="perf-action ${action.className}">${escapeHTML(action.text)}</div></td>
+                </tr>`;
+              }).join('') : `<tr><td colspan="10"><div class="empty">Nenhum dado encontrado. Cadastre vendas ou ajuste os filtros.</div></td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    `;
+
+    bindGlobalActions();
+    const apply = () => {
+      state.filters.performance_servicos.q = $('#perfServiceQ')?.value || '';
+      state.filters.performance_servicos.serviceId = $('#perfServiceId')?.value || '';
+      state.filters.performance_servicos.from = $('#perfFrom')?.value || '';
+      state.filters.performance_servicos.to = $('#perfTo')?.value || '';
+      state.filters.performance_servicos.sort = $('#perfSort')?.value || 'resultado_desc';
+      stableRender();
+    };
+    ['perfServiceId','perfFrom','perfTo','perfSort'].forEach(id => {
+      const el = $('#' + id);
+      if(el) el.onchange = apply;
+    });
+    const qEl = $('#perfServiceQ');
+    if(qEl){
+      let perfQTimer = null;
+      qEl.oninput = () => { clearTimeout(perfQTimer); perfQTimer = setTimeout(apply, 250); };
+    }
+    $('#perfClear').onclick = () => {
+      state.filters.performance_servicos = {q:'',from:'',to:'',serviceId:'',sort:'resultado_desc'};
+      stableRender();
+    };
+  }
+
+
+  function render(){
+    if(state.route === 'hoje') renderHoje();
     if(state.route === 'dashboard') renderDashboard();
     if(state.route === 'kanban') renderKanban();
     if(state.route === 'comercial') renderCommercialDashboard();
@@ -5800,6 +7008,7 @@ function render(){
     if(state.route === 'vendas') renderVendas();
     if(state.route === 'clientes') renderCadastro('clientes','Clientes','Banco de dados simples de clientes.');
     if(state.route === 'servicos') renderCadastro('servicos','Serviços e Produtos','Catálogo comercial de serviços, produtos, preços, custos, margens e vendas.');
+    if(state.route === 'performance_servicos') renderPerformanceServicos();
     if(state.route === 'profissionais') renderCadastro('profissionais','Profissionais','Colaboradores e responsáveis operacionais.');
     if(state.route === 'arquivos') renderArquivos();
   }
@@ -6282,7 +7491,8 @@ function render(){
         <div class="fld"><label for="observacoes">Observações</label><textarea id="observacoes">${escapeHTML(r.observacoes||'')}</textarea></div>
        </div>
        <div class="tab-panel" data-tab-panel="costs" hidden>
-        <p class="note opp-cost-note">Os custos são sincronizados com vendedor, imposto e profissionais do serviço. Custos manuais continuam editáveis.</p>
+        <p class="note opp-cost-note">Os custos são sincronizados com vendedor, imposto e profissionais do serviço. No campo Responsável você pode escolher um profissional cadastrado ou digitar livremente custos diversos.</p>
+        ${costProfessionalsDatalist()}
         <div class="opp-cost-list" id="oppCostsList">${activeCosts.map(renderCostRow).join('')}</div>
         <button class="btn ghost" id="addOppCost" type="button">＋ Adicionar Custo</button>
         <div class="cost-summary" id="costSummaryDynamic"></div>
@@ -8675,6 +9885,229 @@ function init(){
   fxlQAEnsureStatusForFinance();
 
 
+
+  /* ==========================================================================
+     VVS PATCH — Auditoria financeira leve + solicitação visível de exclusão
+     Objetivo: não quebrar fluxo atual; adiciona navegação, transparência financeira
+     e torna a exclusão de vendas acessível pela tela Vendas e pelo financeiro da venda.
+     ========================================================================== */
+
+  function vvsEnsureFinancialAuditNav(){
+    const financeGroup = Array.from(document.querySelectorAll('.navgrp')).find(g => {
+      const label = g.querySelector('span');
+      return label && normalizeText(label.textContent || '') === 'financeiro';
+    });
+    if(!financeGroup || financeGroup.querySelector('[data-route="auditoria_financeira"]')) return;
+    const btn = document.createElement('button');
+    btn.className = 'nav';
+    btn.dataset.route = 'auditoria_financeira';
+    btn.type = 'button';
+    btn.innerHTML = '<span class="ico">✓</span><span class="txt">Auditoria financeira</span>';
+    const vendasBtn = financeGroup.querySelector('[data-route="vendas"]');
+    if(vendasBtn && vendasBtn.nextSibling){
+      financeGroup.insertBefore(btn, vendasBtn.nextSibling);
+    }else{
+      financeGroup.appendChild(btn);
+    }
+    btn.onclick = () => setRoute('auditoria_financeira');
+  }
+
+  function vvsIsPaidAccount(c){
+    const s = normalizeText(c?.status || '');
+    return ['pago','paga','recebido','recebida','baixado','baixada','concluido','concluida'].includes(s);
+  }
+
+  function vvsIsOpenAccount(c){
+    const s = normalizeText(c?.status || '');
+    return !['pago','paga','recebido','recebida','baixado','baixada','cancelado','cancelada','estornado','estornada'].includes(s);
+  }
+
+  function vvsFinancialAuditTotals(){
+    const vendas = (DB.vendas || []).filter(v => normalizeText(v.status || '') !== 'cancelado');
+    const contas = DB.contas || [];
+    const receber = contas.filter(c => c.tipo === 'receber');
+    const pagar = contas.filter(c => c.tipo === 'pagar');
+    const receita = round2(vendas.reduce((sum,v)=>sum + Number(saleFinancialSummary(v).receita || v.valor || 0),0));
+    const custos = round2(vendas.reduce((sum,v)=>sum + Number(saleFinancialSummary(v).custos || 0),0));
+    const recebido = round2(receber.filter(vvsIsPaidAccount).reduce((sum,c)=>sum + Number(c.valor || 0),0));
+    const pago = round2(pagar.filter(vvsIsPaidAccount).reduce((sum,c)=>sum + Number(c.valor || 0),0));
+    const receberAberto = round2(receber.filter(vvsIsOpenAccount).reduce((sum,c)=>sum + Number(c.valor || 0),0));
+    const pagarAberto = round2(pagar.filter(vvsIsOpenAccount).reduce((sum,c)=>sum + Number(c.valor || 0),0));
+    const resultadoCompetencia = round2(receita - custos);
+    const resultadoPrevisto = round2(recebido + receberAberto - pagarAberto);
+    const caixaRealizado = round2(recebido - pago);
+    const margemMedia = receita ? round2((resultadoCompetencia / receita) * 100) : 0;
+    return {vendas:vendas.length, receita, custos, recebido, pago, receberAberto, pagarAberto, resultadoCompetencia, resultadoPrevisto, caixaRealizado, margemMedia};
+  }
+
+  function vvsFinancialAuditIssues(){
+    const report = qaAnalyzeDB(DB);
+    const items = Array.isArray(report.items) ? report.items.slice() : [];
+
+    (DB.vendas || []).forEach(v => {
+      if(normalizeText(v.status || '') === 'cancelado') return;
+      const resumo = saleFinancialSummary(v);
+      const receber = saleReceivables(v);
+      const pagar = salePayables(v);
+      const receberTotal = round2(receber.reduce((s,c)=>s + Number(c.valor || 0),0));
+      const pagarTotal = round2(pagar.reduce((s,c)=>s + Number(c.valor || 0),0));
+      const receita = round2(Number(resumo.receita || v.valor || 0));
+      const custos = round2(Number(resumo.custos || 0));
+
+      if(Math.abs(receberTotal - receita) > 0.02){
+        items.push(qaItem('erro','Venda com recebíveis divergentes',`Venda ${v.id}: receber ${money(receberTotal)} vs receita ${money(receita)}.`,'vendas',v.id));
+      }
+      if(custos > 0 && Math.abs(pagarTotal - custos) > 0.05){
+        items.push(qaItem('alerta','Venda com contas a pagar divergentes',`Venda ${v.id}: pagar ${money(pagarTotal)} vs custos ${money(custos)}.`,'vendas',v.id));
+      }
+      if(Number(resumo.resultado || 0) < 0){
+        items.push(qaItem('alerta','Venda com margem negativa',`Venda ${v.id}: resultado ${money(resumo.resultado)}.`,'vendas',v.id));
+      }
+    });
+
+    return items;
+  }
+
+  function renderAuditoriaFinanceira(){
+    pageMeta('Auditoria financeira','Validação simples para conferir se vendas, contas, custos e resultados estão batendo.');
+    vvsEnsureFinancialAuditNav();
+
+    const totals = vvsFinancialAuditTotals();
+    const issues = vvsFinancialAuditIssues();
+    const erros = issues.filter(i => i.severity === 'erro').length;
+    const alertas = issues.filter(i => i.severity === 'alerta').length;
+    const pendDelete = (DB.audit || []).filter(a => a.action === 'request-delete-sale' && a.status === 'pending');
+
+    $('#content').innerHTML = `
+      <div class="page-header">
+        <div class="page-title">
+          <h2>Auditoria financeira</h2>
+          <p>Checagem objetiva para evitar decisões com números inconsistentes. Não exige novo cadastro.</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn ghost" type="button" data-route-go="vendas">Ver vendas</button>
+          <button class="btn ghost" type="button" data-route-go="arquivos">Auditoria local</button>
+          <button class="btn teal" type="button" id="vvsRunFinancialAudit">Atualizar auditoria</button>
+        </div>
+      </div>
+
+      <div class="grid metrics">
+        <article class="metric"><div class="lab">Erros críticos</div><div class="val">${erros}</div><div class="sub">Precisam de correção</div></article>
+        <article class="metric"><div class="lab">Alertas</div><div class="val">${alertas}</div><div class="sub">Revisar operação</div></article>
+        <article class="metric"><div class="lab">Resultado competência</div><div class="val">${money(totals.resultadoCompetencia)}</div><div class="sub">Receita - custos</div></article>
+        <article class="metric"><div class="lab">Resultado previsto</div><div class="val">${money(totals.resultadoPrevisto)}</div><div class="sub">Recebido + aberto - a pagar</div></article>
+      </div>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h3>Leitura financeira segura</h3>
+        </div>
+        <div class="finance-mini">
+          <div class="box success"><small>Receita fechada</small><strong>${money(totals.receita)}</strong></div>
+          <div class="box"><small>Recebido</small><strong>${money(totals.recebido)}</strong></div>
+          <div class="box warn"><small>A receber aberto</small><strong>${money(totals.receberAberto)}</strong></div>
+          <div class="box danger"><small>Custos totais</small><strong>${money(totals.custos)}</strong></div>
+          <div class="box"><small>Pago</small><strong>${money(totals.pago)}</strong></div>
+          <div class="box warn"><small>A pagar aberto</small><strong>${money(totals.pagarAberto)}</strong></div>
+          <div class="box success"><small>Caixa realizado</small><strong>${money(totals.caixaRealizado)}</strong></div>
+          <div class="box"><small>Margem média</small><strong>${totals.margemMedia}%</strong></div>
+        </div>
+        <p class="note">Regra de leitura: <b>custos totais</b> é tudo que a venda gerou de saída; <b>a pagar aberto</b> é somente o que ainda não foi pago; <b>caixa realizado</b> é recebido menos pago; <b>resultado competência</b> é receita menos custos.</p>
+      </section>
+
+      ${pendDelete.length ? `<section class="panel">
+        <div class="panel-head"><h3>Solicitações pendentes de exclusão de venda</h3><button class="btn sm ghost" type="button" data-route-go="arquivos">Abrir auditoria local</button></div>
+        <div class="list">
+          ${pendDelete.map(a => `<div class="item">
+            <strong>Venda ${escapeHTML(a.entityId || a.saleId || '—')}</strong>
+            <small>${escapeHTML(a.reason || 'Sem motivo informado')} · ${new Date(a.createdAt || Date.now()).toLocaleString('pt-BR')}</small>
+          </div>`).join('')}
+        </div>
+      </section>` : ''}
+
+      <section class="panel">
+        <div class="panel-head">
+          <h3>Inconsistências encontradas</h3>
+          <span class="bdg ${erros ? 'b-bad' : alertas ? 'b-prev' : 'b-ok'}">${erros ? 'Corrigir' : alertas ? 'Revisar' : 'OK'}</span>
+        </div>
+        <div class="audit-log">
+          ${issues.length ? issues.slice(0,100).map(item => `
+            <div class="row">
+              ${qaSeverityBadge(item.severity)}
+              <b>${escapeHTML(item.title)}</b>
+              ${item.entity ? ` · ${escapeHTML(item.entity)}` : ''}
+              ${item.recordId ? ` · <span class="mono">${escapeHTML(item.recordId)}</span>` : ''}
+              <br><small>${escapeHTML(item.detail || '')}</small>
+            </div>
+          `).join('') : `<div class="row">${qaSeverityBadge('ok')} <b>Nenhuma inconsistência crítica encontrada.</b><br><small>As vendas, contas e custos principais estão coerentes.</small></div>`}
+        </div>
+      </section>
+    `;
+
+    bindGlobalActions();
+    $('#vvsRunFinancialAudit').onclick = () => {
+      const report = qaAnalyzeDB(DB);
+      storeQAReport(report);
+      audit('sistema','financial-audit-run',null,{counts:report.counts,totals:report.totals},'Auditoria financeira executada');
+      toast('Auditoria financeira atualizada.');
+      stableRender();
+    };
+  }
+
+  function vvsEnhanceSalesDeleteButtons(){
+    if(state.route !== 'vendas') return;
+    $$('[data-edit-venda]').forEach(btn => {
+      const id = btn.dataset.editVenda;
+      const actions = btn.closest('.actions');
+      if(!actions || !id || actions.querySelector(`[data-request-delete-sale="${CSS.escape(id)}"]`)) return;
+      const del = document.createElement('button');
+      del.className = 'btn sm red';
+      del.type = 'button';
+      del.dataset.requestDeleteSale = id;
+      del.textContent = 'Solicitar exclusão';
+      del.onclick = () => requestDeleteVenda(id);
+      actions.appendChild(del);
+    });
+
+    const panel = $('#content .panel');
+    if(panel && !$('#vvsSalesFinanceHelp')){
+      const note = document.createElement('p');
+      note.id = 'vvsSalesFinanceHelp';
+      note.className = 'note';
+      note.innerHTML = '<b>Leitura:</b> em Vendas, “A pagar” mostra somente pendências abertas. “Custos totais” considera todo custo gerado pela venda, mesmo quando já foi pago.';
+      panel.insertBefore(note, panel.firstChild);
+    }
+  }
+
+  const __vvsOriginalModalVendaFinanceiro = modalVendaFinanceiro;
+  modalVendaFinanceiro = function(sale){
+    __vvsOriginalModalVendaFinanceiro(sale);
+    if(!sale || !$('#modalFoot')) return;
+    if($('#modalFoot').querySelector(`[data-request-delete-sale="${CSS.escape(sale.id)}"]`)) return;
+    const btn = document.createElement('button');
+    btn.className = 'btn red';
+    btn.type = 'button';
+    btn.dataset.requestDeleteSale = sale.id;
+    btn.textContent = 'Solicitar exclusão';
+    btn.onclick = () => requestDeleteVenda(sale.id);
+    $('#modalFoot').insertBefore(btn, $('#modalFoot').firstChild);
+  };
+
+  const __vvsOriginalRender = render;
+  render = function(){
+    vvsEnsureFinancialAuditNav();
+    if(state.route === 'auditoria_financeira'){
+      $$('.nav').forEach(n => n.classList.toggle('active', n.dataset.route === 'auditoria_financeira'));
+      renderAuditoriaFinanceira();
+      return;
+    }
+    __vvsOriginalRender();
+    vvsEnhanceSalesDeleteButtons();
+  };
+
+  vvsEnsureFinancialAuditNav();
+
+
   init();
 })();
 
@@ -9260,6 +10693,868 @@ function init(){
     version:'sidebar-collapse-all-viewports-v1',
     checkedAt:new Date().toISOString()
   };
+})();
+</script>
+
+
+<script>
+/* ==========================================================================
+   PATCH VVS — Scroll fluido e navegação independente do ponto do mouse
+   - Roteia rolagem vertical para .main quando o alvo não tem scroll vertical.
+   - Preserva scroll interno de modais, sidebar, tabelas e Kanban.
+   - Mantém layout recalculado após troca de rota, zoom e resize.
+   ========================================================================== */
+(function(){
+  'use strict';
+
+  const PATCH_ID = 'vvs-fluid-scroll-zoom-v1';
+  if(window.__VVS_FLUID_SCROLL_ZOOM__ && window.__VVS_FLUID_SCROLL_ZOOM__.id === PATCH_ID) return;
+
+  const qs = (sel, root=document) => root.querySelector(sel);
+
+  function isVisible(el){
+    if(!el || el === document || el === window) return false;
+    const style = window.getComputedStyle(el);
+    return style.display !== 'none' && style.visibility !== 'hidden';
+  }
+
+  function canScrollY(el){
+    if(!isVisible(el)) return false;
+    const style = window.getComputedStyle(el);
+    const oy = style.overflowY;
+    return /(auto|scroll|overlay)/.test(oy) && el.scrollHeight > el.clientHeight + 2;
+  }
+
+  function canScrollX(el){
+    if(!isVisible(el)) return false;
+    const style = window.getComputedStyle(el);
+    const ox = style.overflowX;
+    return /(auto|scroll|overlay)/.test(ox) && el.scrollWidth > el.clientWidth + 2;
+  }
+
+  function canMoveY(el, deltaY){
+    if(!canScrollY(el)) return false;
+    if(deltaY > 0) return el.scrollTop + el.clientHeight < el.scrollHeight - 1;
+    if(deltaY < 0) return el.scrollTop > 1;
+    return false;
+  }
+
+  function closestScrollableY(start, deltaY){
+    let el = start && start.nodeType === 1 ? start : start?.parentElement;
+    while(el && el !== document.body && el !== document.documentElement){
+      if(canMoveY(el, deltaY)) return el;
+      el = el.parentElement;
+    }
+    return null;
+  }
+
+  function insideInteractiveScrollZone(target){
+    return !!(target && target.closest && target.closest(
+      '.mbody,.modal,.side,.table-scroll,.kanban-board,.audit-log,.filter-pop,.client-suggest-list,textarea,select,[data-vvs-native-scroll="true"]'
+    ));
+  }
+
+  function getMain(){
+    return qs('#main') || qs('.main');
+  }
+
+  function normalizeMainHeight(){
+    const main = getMain();
+    const app = qs('#app') || qs('.app');
+    if(!main || !app) return;
+
+    app.style.height = '100dvh';
+    app.style.maxHeight = '100dvh';
+    app.style.overflow = 'hidden';
+
+    main.style.height = '100dvh';
+    main.style.maxHeight = '100dvh';
+    main.style.overflowY = 'auto';
+    main.style.overflowX = 'hidden';
+
+    // Mantém foco navegável sem pular scroll ao trocar rota.
+    if(!main.hasAttribute('tabindex')) main.setAttribute('tabindex','-1');
+  }
+
+  function onWheel(ev){
+    const main = getMain();
+    if(!main || ev.defaultPrevented) return;
+
+    const absY = Math.abs(ev.deltaY || 0);
+    const absX = Math.abs(ev.deltaX || 0);
+    if(absY < 1) return;
+
+    const target = ev.target;
+
+    // Kanban/tabelas: rolagem horizontal natural quando houver gesto horizontal.
+    const horizontalZone = target?.closest?.('.kanban-board,.table-scroll');
+    if(horizontalZone && (absX > absY || ev.shiftKey) && canScrollX(horizontalZone)) return;
+
+    // Se o elemento sob o mouse consegue rolar verticalmente, deixa ele controlar.
+    const localScroller = closestScrollableY(target, ev.deltaY);
+    if(localScroller && localScroller !== main) return;
+
+    // Sidebar deve rolar a própria sidebar quando possível. Se não puder, evita travar o app.
+    if(target?.closest?.('.side') && localScroller) return;
+
+    // Dentro de modal sem scroll vertical disponível, não joga a página de fundo.
+    if(target?.closest?.('.modal')) return;
+
+    // Se o mouse estiver sobre área sem scroll vertical, rola o conteúdo principal.
+    if(!canMoveY(main, ev.deltaY)) return;
+    ev.preventDefault();
+    main.scrollTop += ev.deltaY;
+  }
+
+  function onKeydown(ev){
+    const main = getMain();
+    if(!main || ev.defaultPrevented) return;
+    const active = document.activeElement;
+    if(active && /input|textarea|select/i.test(active.tagName)) return;
+    if(qs('#modal.on')) return;
+
+    const keys = ['PageDown','PageUp','Home','End','ArrowDown','ArrowUp',' '];
+    if(!keys.includes(ev.key)) return;
+
+    const step = Math.max(80, Math.floor(main.clientHeight * 0.86));
+    if(ev.key === 'PageDown' || ev.key === ' '){
+      ev.preventDefault();
+      main.scrollBy({top:step, behavior:'auto'});
+    }else if(ev.key === 'PageUp'){
+      ev.preventDefault();
+      main.scrollBy({top:-step, behavior:'auto'});
+    }else if(ev.key === 'Home'){
+      ev.preventDefault();
+      main.scrollTo({top:0, behavior:'auto'});
+    }else if(ev.key === 'End'){
+      ev.preventDefault();
+      main.scrollTo({top:main.scrollHeight, behavior:'auto'});
+    }else if(ev.key === 'ArrowDown'){
+      ev.preventDefault();
+      main.scrollBy({top:56, behavior:'auto'});
+    }else if(ev.key === 'ArrowUp'){
+      ev.preventDefault();
+      main.scrollBy({top:-56, behavior:'auto'});
+    }
+  }
+
+  function enhanceTablesForMobile(){
+    document.querySelectorAll('.table-scroll table').forEach(function(table){
+      const heads = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim());
+      table.querySelectorAll('tbody tr').forEach(function(row){
+        Array.from(row.children).forEach(function(cell, index){
+          if(heads[index] && !cell.dataset.label) cell.dataset.label = heads[index];
+        });
+      });
+    });
+  }
+
+  function afterRender(){
+    normalizeMainHeight();
+    enhanceTablesForMobile();
+  }
+
+  function boot(){
+    normalizeMainHeight();
+    enhanceTablesForMobile();
+
+    document.addEventListener('wheel', onWheel, {passive:false, capture:true});
+    document.addEventListener('keydown', onKeydown, true);
+
+    let raf = 0;
+    const schedule = function(){
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(afterRender);
+    };
+
+    window.addEventListener('resize', schedule, {passive:true});
+    window.addEventListener('orientationchange', schedule, {passive:true});
+
+    const content = qs('#content');
+    if(content && 'MutationObserver' in window){
+      new MutationObserver(schedule).observe(content, {childList:true, subtree:true});
+    }
+
+    document.querySelectorAll('.nav[data-route]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        const main = getMain();
+        if(main) main.scrollTo({top:0, behavior:'auto'});
+        setTimeout(schedule, 30);
+      });
+    });
+
+    window.__VVS_FLUID_SCROLL_ZOOM__ = {
+      id:PATCH_ID,
+      ok:true,
+      checkedAt:new Date().toISOString(),
+      notes:'Scroll vertical roteado para o main, layout fluido por clamp/auto-fit, Kanban horizontal preservado.'
+    };
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', boot);
+  }else{
+    boot();
+  }
+})();
+</script>
+
+
+<style id="vvs-kanban-scroll-text-fix">
+/* ==========================================================================
+   PATCH VVS — Kanban desktop fluido + textos/tabelas responsivos
+   Objetivo: melhorar movimentação horizontal do Kanban e evitar textos
+   quebrados/embaralhados em zoom, notebook e telas estreitas.
+   ========================================================================== */
+
+.kanban-shell{
+  position:relative;
+  min-width:0;
+}
+
+.kanban-shell::before,
+.kanban-shell::after{
+  content:"";
+  position:absolute;
+  top:0;
+  bottom:14px;
+  width:42px;
+  pointer-events:none;
+  z-index:4;
+  opacity:0;
+  transition:opacity .16s ease;
+}
+
+.kanban-shell::before{
+  left:0;
+  background:linear-gradient(90deg, var(--paper), rgba(244,241,233,0));
+}
+
+.kanban-shell::after{
+  right:0;
+  background:linear-gradient(270deg, var(--paper), rgba(244,241,233,0));
+}
+
+.kanban-shell.can-left::before,
+.kanban-shell.can-right::after{
+  opacity:1;
+}
+
+.kanban-board{
+  scrollbar-width:thin;
+  scroll-behavior:smooth;
+  cursor:default;
+  touch-action:pan-x pan-y;
+}
+
+.kanban-board.is-edge-scrolling{
+  scroll-behavior:auto;
+}
+
+.kanban-board.is-drag-autoscroll{
+  cursor:grabbing;
+}
+
+.kanban-board::-webkit-scrollbar{
+  height:12px;
+}
+
+.kanban-board::-webkit-scrollbar-track{
+  background:#ece7da;
+  border-radius:999px;
+}
+
+.kanban-board::-webkit-scrollbar-thumb{
+  background:#c9c1ae;
+  border-radius:999px;
+  border:3px solid #ece7da;
+}
+
+.kanban-board::-webkit-scrollbar-thumb:hover{
+  background:#a79f8f;
+}
+
+.kanban-col{
+  contain:layout paint;
+}
+
+.kanban-dropzone{
+  min-height:280px;
+}
+
+.opp-card,
+.item,
+.metric,
+.panel,
+.sale-summary-card,
+.finance-preview-card{
+  overflow-wrap:break-word;
+  word-break:normal;
+  min-width:0;
+}
+
+.opp-name,
+.opp-company,
+.opp-service,
+.kanban-title span:last-child{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+/* Tabelas: no desktop/zoom alto, preferir rolagem horizontal a quebrar dinheiro/data. */
+.table-scroll{
+  max-width:100%;
+  overflow:auto;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:thin;
+}
+
+.table-scroll table{
+  min-width:max(1040px, 100%) !important;
+  table-layout:auto;
+}
+
+.table-scroll th,
+.table-scroll td{
+  vertical-align:middle;
+  line-height:1.35;
+  word-break:normal;
+  overflow-wrap:normal;
+}
+
+.table-scroll td:first-child,
+.table-scroll th:first-child,
+.table-scroll td.num,
+.table-scroll th.num,
+.table-scroll .mono,
+.table-scroll .bdg{
+  white-space:nowrap;
+}
+
+.table-scroll td:not(.num):not(:first-child){
+  overflow-wrap:anywhere;
+}
+
+.table-scroll .actions,
+.table-scroll td:last-child{
+  min-width:148px;
+}
+
+.table-scroll .actions .btn{
+  white-space:nowrap;
+}
+
+/* Ajuste de tipografia por proporção/zoom: reduz sem embaralhar. */
+.metric .val{
+  font-size:clamp(18px, 1.55vw, 24px);
+  line-height:1.15;
+}
+
+.topline h1,
+.page-title h2{
+  font-size:clamp(24px, 2vw, 32px);
+}
+
+.panel h3,
+.metric .lab,
+th{
+  text-wrap:balance;
+}
+
+.btn,
+.inline-input,
+.fld input,
+.fld select,
+.fld textarea{
+  max-width:100%;
+}
+
+@media(max-width:1180px){
+  .table-scroll table{
+    min-width:1080px !important;
+  }
+}
+
+@media(max-width:760px){
+  .kanban-dropzone{
+    min-height:220px;
+  }
+
+  .table-scroll table{
+    min-width:960px !important;
+  }
+
+  .metric .val{
+    font-size:clamp(18px, 6vw, 22px);
+  }
+
+  .page-actions,
+  .toolbar,
+  .tool-left,
+  .tool-right{
+    gap:8px;
+  }
+}
+</style>
+
+<script id="vvs-kanban-autoscroll-text-fix">
+(function(){
+  'use strict';
+
+  const PATCH_ID = 'VVS_KANBAN_AUTOSCROLL_TEXT_FIX_V1';
+  if(window.__VVS_KANBAN_AUTOSCROLL_TEXT_FIX__?.id === PATCH_ID) return;
+
+  let board = null;
+  let shell = null;
+  let raf = 0;
+  let velocity = 0;
+  let isDraggingCard = false;
+  let lastClientX = null;
+
+  function clamp(n, min, max){
+    return Math.max(min, Math.min(max, n));
+  }
+
+  function getBoard(){
+    return document.getElementById('kanbanBoard');
+  }
+
+  function updateShadows(){
+    if(!board || !shell) return;
+    const canLeft = board.scrollLeft > 2;
+    const canRight = board.scrollLeft + board.clientWidth < board.scrollWidth - 2;
+    shell.classList.toggle('can-left', canLeft);
+    shell.classList.toggle('can-right', canRight);
+  }
+
+  function stopAutoScroll(){
+    velocity = 0;
+    lastClientX = null;
+    if(board){
+      board.classList.remove('is-edge-scrolling','is-drag-autoscroll');
+    }
+    if(raf){
+      cancelAnimationFrame(raf);
+      raf = 0;
+    }
+  }
+
+  function loop(){
+    if(!board || !velocity){
+      raf = 0;
+      updateShadows();
+      return;
+    }
+    board.scrollLeft += velocity;
+    updateShadows();
+    raf = requestAnimationFrame(loop);
+  }
+
+  function setVelocityFromX(clientX, mode){
+    if(!board) return;
+    const rect = board.getBoundingClientRect();
+    if(!rect.width) return;
+
+    const edge = clamp(rect.width * 0.16, 58, 130);
+    const leftDistance = clientX - rect.left;
+    const rightDistance = rect.right - clientX;
+    let next = 0;
+
+    if(leftDistance < edge){
+      const power = (edge - leftDistance) / edge;
+      next = -clamp(5 + power * 26, 0, 32);
+    }else if(rightDistance < edge){
+      const power = (edge - rightDistance) / edge;
+      next = clamp(5 + power * 26, 0, 32);
+    }
+
+    const canLeft = board.scrollLeft > 0;
+    const canRight = board.scrollLeft + board.clientWidth < board.scrollWidth - 1;
+    if(next < 0 && !canLeft) next = 0;
+    if(next > 0 && !canRight) next = 0;
+
+    velocity = next;
+    board.classList.toggle('is-edge-scrolling', !!next);
+    board.classList.toggle('is-drag-autoscroll', !!next && mode === 'drag');
+
+    if(velocity && !raf) raf = requestAnimationFrame(loop);
+    if(!velocity && raf){
+      cancelAnimationFrame(raf);
+      raf = 0;
+    }
+    updateShadows();
+  }
+
+  function bindKanbanAutoScroll(){
+    const nextBoard = getBoard();
+    if(!nextBoard || nextBoard.dataset.vvsAutoScrollBound === '1') return;
+
+    board = nextBoard;
+    shell = board.closest('.kanban-shell');
+    board.dataset.vvsAutoScrollBound = '1';
+    updateShadows();
+
+    board.addEventListener('scroll', updateShadows, {passive:true});
+
+    board.addEventListener('mousemove', function(ev){
+      // No desktop, aproximar o mouse das extremidades move o carrossel.
+      if(ev.pointerType === 'touch') return;
+      lastClientX = ev.clientX;
+      setVelocityFromX(ev.clientX, isDraggingCard ? 'drag' : 'hover');
+    }, {passive:true});
+
+    board.addEventListener('mouseleave', function(){
+      if(!isDraggingCard) stopAutoScroll();
+    }, {passive:true});
+
+    board.addEventListener('wheel', function(ev){
+      // Dentro do Kanban, roda vertical do mouse vira navegação horizontal.
+      if(Math.abs(ev.deltaY) > Math.abs(ev.deltaX) && board.scrollWidth > board.clientWidth){
+        const before = board.scrollLeft;
+        board.scrollLeft += ev.deltaY;
+        if(board.scrollLeft !== before){
+          ev.preventDefault();
+          updateShadows();
+        }
+      }
+    }, {passive:false});
+
+    document.addEventListener('dragstart', function(ev){
+      if(ev.target && ev.target.closest && ev.target.closest('.opp-card')){
+        isDraggingCard = true;
+        board.classList.add('is-drag-autoscroll');
+      }
+    }, true);
+
+    document.addEventListener('dragover', function(ev){
+      if(!isDraggingCard) return;
+      const activeBoard = getBoard();
+      if(!activeBoard) return;
+      board = activeBoard;
+      shell = board.closest('.kanban-shell');
+      const rect = board.getBoundingClientRect();
+      const insideY = ev.clientY >= rect.top - 80 && ev.clientY <= rect.bottom + 80;
+      if(insideY) setVelocityFromX(ev.clientX, 'drag');
+    }, true);
+
+    document.addEventListener('dragend', function(){
+      isDraggingCard = false;
+      stopAutoScroll();
+    }, true);
+
+    document.addEventListener('drop', function(){
+      isDraggingCard = false;
+      stopAutoScroll();
+    }, true);
+  }
+
+  function enhanceTables(){
+    document.querySelectorAll('.table-scroll table').forEach(table => {
+      table.setAttribute('data-vvs-responsive-table','true');
+    });
+  }
+
+  function boot(){
+    bindKanbanAutoScroll();
+    enhanceTables();
+
+    const observer = new MutationObserver(() => {
+      bindKanbanAutoScroll();
+      enhanceTables();
+    });
+
+    const content = document.getElementById('content') || document.body;
+    observer.observe(content, {childList:true, subtree:true});
+
+    window.addEventListener('resize', () => {
+      board = getBoard();
+      shell = board?.closest('.kanban-shell') || null;
+      updateShadows();
+      if(lastClientX != null) setVelocityFromX(lastClientX, isDraggingCard ? 'drag' : 'hover');
+    }, {passive:true});
+
+    window.__VVS_KANBAN_AUTOSCROLL_TEXT_FIX__ = {
+      id:PATCH_ID,
+      ok:true,
+      checkedAt:new Date().toISOString(),
+      notes:'Kanban com auto-scroll por borda/drag/wheel e tabelas com texto proporcional sem quebra agressiva.'
+    };
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', boot);
+  }else{
+    boot();
+  }
+})();
+</script>
+
+
+<style id="vvs-kanban-autoscroll-v2-style">
+/* ==========================================================================
+   PATCH VVS — Kanban auto-scroll desktop V2
+   Corrige navegação horizontal do funil sem depender da barra inferior.
+   ========================================================================== */
+.kanban-shell{
+  position:relative !important;
+}
+
+.kanban-board{
+  overflow-x:auto !important;
+  overflow-y:hidden !important;
+  scroll-behavior:auto !important;
+  scrollbar-gutter:stable;
+}
+
+.kanban-board.vvs-kanban-autoscrolling{
+  scroll-behavior:auto !important;
+}
+
+.kanban-shell.vvs-edge-left::before,
+.kanban-shell.vvs-edge-right::after{
+  opacity:1 !important;
+}
+
+.kanban-shell.vvs-edge-left::before{
+  width:56px !important;
+}
+
+.kanban-shell.vvs-edge-right::after{
+  width:56px !important;
+}
+
+.opp-card{
+  max-width:100%;
+}
+
+.opp-actions{
+  max-width:100%;
+}
+</style>
+
+<script id="vvs-kanban-autoscroll-v2">
+(function(){
+  'use strict';
+
+  const PATCH_ID = 'VVS_KANBAN_AUTOSCROLL_V2_DOCUMENT_EDGE';
+  if(window.__VVS_KANBAN_AUTOSCROLL_V2__?.id === PATCH_ID) return;
+
+  let active = false;
+  let dragging = false;
+  let velocity = 0;
+  let raf = 0;
+  let lastX = null;
+  let lastY = null;
+
+  function getBoard(){
+    const board = document.getElementById('kanbanBoard') || document.querySelector('.kanban-board');
+    if(!board) return null;
+    const rect = board.getBoundingClientRect();
+    if(rect.width < 40 || rect.height < 40) return null;
+    if(board.scrollWidth <= board.clientWidth + 8) return null;
+    return board;
+  }
+
+  function isKanbanRoute(){
+    const activeNav = document.querySelector('.nav.active');
+    if(activeNav && activeNav.dataset.route === 'kanban') return true;
+    return !!document.getElementById('kanbanBoard');
+  }
+
+  function isPointerNearKanbanArea(board, y){
+    if(dragging) return true;
+    const rect = board.getBoundingClientRect();
+    return y >= rect.top - 120 && y <= rect.bottom + 120;
+  }
+
+  function calculateVelocity(board, x, y){
+    if(!board || !isKanbanRoute() || !isPointerNearKanbanArea(board, y)) return 0;
+
+    const rect = board.getBoundingClientRect();
+    const viewportW = window.innerWidth || document.documentElement.clientWidth || rect.right;
+
+    // Usa a borda visível do próprio Kanban e também a borda da janela.
+    const leftHot = Math.max(rect.left, 0);
+    const rightHot = Math.min(rect.right, viewportW);
+
+    // Área quente maior no desktop para não exigir precisão.
+    const edge = Math.max(84, Math.min(170, rect.width * 0.18));
+    let next = 0;
+
+    const leftDistance = x - leftHot;
+    const rightDistance = rightHot - x;
+
+    if(leftDistance >= 0 && leftDistance < edge){
+      const power = (edge - leftDistance) / edge;
+      next = -(8 + power * 34);
+    }
+
+    if(rightDistance >= 0 && rightDistance < edge){
+      const power = (edge - rightDistance) / edge;
+      next = 8 + power * 34;
+    }
+
+    // Fallback: extrema da janela, mesmo quando o card fica por cima/fora do board.
+    if(x > viewportW - edge){
+      const power = (edge - (viewportW - x)) / edge;
+      next = Math.max(next, 10 + power * 38);
+    }
+    if(x < edge){
+      const power = (edge - x) / edge;
+      next = Math.min(next, -(10 + power * 38));
+    }
+
+    if(next < 0 && board.scrollLeft <= 1) next = 0;
+    if(next > 0 && board.scrollLeft + board.clientWidth >= board.scrollWidth - 2) next = 0;
+
+    return next;
+  }
+
+  function updateShellState(board){
+    const shell = board?.closest?.('.kanban-shell');
+    if(!shell || !board) return;
+    shell.classList.toggle('vvs-edge-left', board.scrollLeft > 2);
+    shell.classList.toggle('vvs-edge-right', board.scrollLeft + board.clientWidth < board.scrollWidth - 2);
+  }
+
+  function startLoop(){
+    if(raf) return;
+    raf = requestAnimationFrame(loop);
+  }
+
+  function stopLoop(){
+    velocity = 0;
+    active = false;
+    const board = getBoard();
+    if(board) board.classList.remove('vvs-kanban-autoscrolling');
+    if(raf){
+      cancelAnimationFrame(raf);
+      raf = 0;
+    }
+  }
+
+  function loop(){
+    const board = getBoard();
+    if(!board || !velocity){
+      stopLoop();
+      return;
+    }
+
+    board.classList.add('vvs-kanban-autoscrolling');
+    board.scrollLeft += velocity;
+    updateShellState(board);
+
+    // Recalcula a cada frame usando a última posição conhecida. Isso mantém
+    // o movimento enquanto o mouse/card permanece na extremidade.
+    if(lastX != null && lastY != null){
+      velocity = calculateVelocity(board, lastX, lastY);
+    }
+
+    if(velocity){
+      raf = requestAnimationFrame(loop);
+    }else{
+      stopLoop();
+    }
+  }
+
+  function handlePointerPosition(x, y){
+    const board = getBoard();
+    if(!board) return stopLoop();
+
+    lastX = x;
+    lastY = y;
+    updateShellState(board);
+
+    const next = calculateVelocity(board, x, y);
+    velocity = next;
+
+    if(next){
+      active = true;
+      startLoop();
+    }else if(!dragging){
+      stopLoop();
+    }
+  }
+
+  function onMouseMove(ev){
+    if(ev.pointerType === 'touch') return;
+    handlePointerPosition(ev.clientX, ev.clientY);
+  }
+
+  function onDragStart(ev){
+    const card = ev.target?.closest?.('.opp-card');
+    if(!card) return;
+    dragging = true;
+    handlePointerPosition(ev.clientX || lastX || 0, ev.clientY || lastY || 0);
+  }
+
+  function onDragOver(ev){
+    if(!dragging) return;
+    handlePointerPosition(ev.clientX, ev.clientY);
+  }
+
+  function onDragEnd(){
+    dragging = false;
+    stopLoop();
+  }
+
+  function onWheel(ev){
+    const board = ev.target?.closest?.('.kanban-board');
+    if(!board || board.scrollWidth <= board.clientWidth + 8) return;
+
+    const absY = Math.abs(ev.deltaY || 0);
+    const absX = Math.abs(ev.deltaX || 0);
+
+    // Roda vertical dentro do Kanban vira deslocamento horizontal. Isso resolve
+    // mouse comum sem trackpad horizontal e sem precisar descer até a barra.
+    if(absY > absX){
+      const before = board.scrollLeft;
+      board.scrollLeft += ev.deltaY;
+      if(board.scrollLeft !== before){
+        ev.preventDefault();
+        updateShellState(board);
+      }
+    }
+  }
+
+  function boot(){
+    document.addEventListener('mousemove', onMouseMove, {passive:true, capture:true});
+    document.addEventListener('dragstart', onDragStart, true);
+    document.addEventListener('dragover', onDragOver, true);
+    document.addEventListener('dragend', onDragEnd, true);
+    document.addEventListener('drop', onDragEnd, true);
+    document.addEventListener('wheel', onWheel, {passive:false, capture:true});
+
+    const scheduleState = () => {
+      const board = getBoard();
+      if(board) updateShellState(board);
+    };
+
+    window.addEventListener('resize', scheduleState, {passive:true});
+    window.addEventListener('orientationchange', scheduleState, {passive:true});
+
+    const content = document.getElementById('content') || document.body;
+    if('MutationObserver' in window){
+      new MutationObserver(scheduleState).observe(content, {childList:true, subtree:true});
+    }
+
+    setTimeout(scheduleState, 50);
+
+    window.__VVS_KANBAN_AUTOSCROLL_V2__ = {
+      id:PATCH_ID,
+      ok:true,
+      checkedAt:new Date().toISOString(),
+      notes:'Auto-scroll do Kanban por borda da janela/documento, dragover global e wheel vertical dentro do board.'
+    };
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', boot);
+  }else{
+    boot();
+  }
 })();
 </script>
 
