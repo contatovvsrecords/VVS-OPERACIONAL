@@ -2340,11 +2340,16 @@ body{
 
   function metrics(){
     const vendasFechadas = DB.vendas.filter(v => v.status === 'fechado');
-    const receita = vendasFechadas.reduce((s,v)=>s+Number(v.valor||0),0);
-    const receberAberto = DB.contas.filter(c=>c.tipo==='receber' && c.status==='aberto').reduce((s,c)=>s+Number(c.valor||0),0);
-    const pagarAberto = DB.contas.filter(c=>c.tipo==='pagar' && c.status==='aberto').reduce((s,c)=>s+Number(c.valor||0),0);
-    const saldoPrev = receberAberto - pagarAberto;
-    return {receita,receberAberto,pagarAberto,saldoPrev,vendas:vendasFechadas.length,clientes:DB.clientes.filter(c=>c.status==='ativo').length};
+    const receita = round2(vendasFechadas.reduce((s,v)=>s+Number(v.valor||0),0));
+    const recebido = round2(DB.contas.filter(c=>c.tipo==='receber' && ['pago','recebido','baixado'].includes(String(c.status||'').toLowerCase())).reduce((s,c)=>s+Number(c.valor||0),0));
+    const receberAberto = round2(DB.contas.filter(c=>c.tipo==='receber' && c.status==='aberto').reduce((s,c)=>s+Number(c.valor||0),0));
+    const pago = round2(DB.contas.filter(c=>c.tipo==='pagar' && ['pago','recebido','baixado'].includes(String(c.status||'').toLowerCase())).reduce((s,c)=>s+Number(c.valor||0),0));
+    const pagarAberto = round2(DB.contas.filter(c=>c.tipo==='pagar' && c.status==='aberto').reduce((s,c)=>s+Number(c.valor||0),0));
+    const custoVendas = round2(vendasFechadas.reduce((s,v)=>s+Number(v.custoTotal || opportunityCostsTotal(v.custos || []) || 0),0));
+    const resultadoCompetencia = round2(receita - custoVendas);
+    const saldoPrev = round2(receita + receberAberto - pagarAberto);
+    const resultadoCaixaPrevisto = round2(recebido + receberAberto - pagarAberto);
+    return {receita,recebido,receberAberto,pago,pagarAberto,saldoPrev,resultadoCaixaPrevisto,custoVendas,resultadoCompetencia,vendas:vendasFechadas.length,clientes:DB.clientes.filter(c=>c.status==='ativo').length};
   }
 
   function renderDashboard(){
@@ -2358,7 +2363,7 @@ body{
         <article class="metric"><div class="lab">Receita fechada</div><div class="val">${money(m.receita)}</div><div class="sub">${m.vendas} vendas fechadas</div></article>
         <article class="metric"><div class="lab">A receber aberto</div><div class="val">${money(m.receberAberto)}</div><div class="sub">Próximos vencimentos</div></article>
         <article class="metric"><div class="lab">A pagar aberto</div><div class="val">${money(m.pagarAberto)}</div><div class="sub">Compromissos em aberto</div></article>
-        <article class="metric"><div class="lab">Saldo previsto</div><div class="val">${money(m.saldoPrev)}</div><div class="sub">${m.clientes} clientes ativos</div></article>
+        <article class="metric"><div class="lab">Resultado previsto</div><div class="val">${money(m.saldoPrev)}</div><div class="sub">Receita + recebíveis - compromissos</div></article>
       </div>
 
       <div class="split">
@@ -2368,6 +2373,7 @@ body{
             ${bar('Receita', m.receita, max)}
             ${bar('A receber', m.receberAberto, max)}
             ${bar('A pagar', m.pagarAberto, max)}
+            ${bar('Resultado previsto', m.saldoPrev, Math.max(max, Math.abs(m.saldoPrev), 1))}
           </div>
         </section>
         <section class="panel">
@@ -8315,6 +8321,356 @@ function init(){
   };
 
 
+
+  /* ==========================================================================
+     PATCH AUDITORIA FINANCEIRA VVS — cálculo único para dinheiro
+     ========================================================================== */
+
+  function vvsIsAutomaticCost(c, service){
+    const cat = normalizeText(c?.categoria || '');
+    const desc = normalizeText(c?.descricao || c?.nome || '');
+    const origem = normalizeText(c?.origem || '');
+    if(cat.includes('comissao') || desc.includes('comissao')) return true;
+    if(cat.includes('imposto') || desc.includes('imposto') || desc.includes('fiscal')) return true;
+    if(origem.includes('servico') || origem.includes('automatico') || origem.includes('clonado')) return true;
+    if(c?.serviceCostId || c?.custoServicoId || c?.sourceId) return true;
+    const serviceCosts = Array.isArray(service?.custosOperacionais) ? service.custosOperacionais : [];
+    return serviceCosts.some(sc => {
+      const scName = normalizeText(sc.nome || sc.descricao || '');
+      return scName && (desc === scName || desc.includes(scName) || scName.includes(desc));
+    });
+  }
+
+  function vvsManualCosts(costs, service){
+    return (costs || [])
+      .map((c, idx) => normalizeOpportunityCost(c, idx))
+      .filter(c => c && (c.descricao || Number(c.valor || 0)))
+      .filter(c => !vvsIsAutomaticCost(c, service))
+      .map((c, idx) => normalizeOpportunityCost(Object.assign({}, c, {
+        valor: round2(Number(c.valor || 0)),
+        valorUnitario: round2(Number(c.valorUnitario || c.valor || 0)),
+        quantidadeAplicada: 1,
+        multiplicaPorQuantidade: false,
+        origem: c.origem || 'manual'
+      }), idx));
+  }
+
+  function vvsBuildFinancialCosts(input){
+    const service = byId(DB.servicos, input?.servicoId);
+    const quantidade = Math.max(1, Number(input?.quantidade || 1));
+    const valorUnitario = round2(Number(input?.valorUnitario ?? (quantidade ? Number(input?.valor || 0) / quantidade : Number(input?.valor || 0)) ?? service?.valor ?? service?.preco ?? 0));
+    const valor = round2(valorUnitario * quantidade);
+    const comissaoPct = Number(service?.comissaoPercentual ?? 10);
+    const impostoPct = Number(service?.impostoPercentual ?? 10);
+    const seller = getName('profissionais', input?.profissionalId) || input?.vendedorNome || 'Vendedor';
+    const custos = [];
+
+    if(valor > 0 && comissaoPct > 0){
+      custos.push(normalizeOpportunityCost({
+        id:'auto_comissao',
+        descricao:`Comissão de venda (${comissaoPct}%)`,
+        categoria:'Comissão',
+        responsavel:seller,
+        profissionalId:input?.profissionalId || '',
+        valor:round2(valor * (comissaoPct / 100)),
+        valorUnitario:round2(valor * (comissaoPct / 100)),
+        quantidadeAplicada:1,
+        multiplicaPorQuantidade:false,
+        origem:'automatico_comissao'
+      }, custos.length));
+    }
+
+    if(valor > 0 && impostoPct > 0){
+      custos.push(normalizeOpportunityCost({
+        id:'auto_imposto',
+        descricao:`Imposto (${impostoPct}%)`,
+        categoria:'Imposto',
+        responsavel:'Fiscal / Impostos',
+        profissionalId:'',
+        valor:round2(valor * (impostoPct / 100)),
+        valorUnitario:round2(valor * (impostoPct / 100)),
+        quantidadeAplicada:1,
+        multiplicaPorQuantidade:false,
+        origem:'automatico_imposto'
+      }, custos.length));
+    }
+
+    const serviceCosts = Array.isArray(service?.custosOperacionais) ? service.custosOperacionais : [];
+    serviceCosts.forEach((sc) => {
+      const unit = round2(Number(sc.valor || sc.custo || 0));
+      const total = round2(unit * quantidade);
+      if(total <= 0 && !sc.nome) return;
+      custos.push(normalizeOpportunityCost({
+        id:`auto_service_${sc.id || normalizeText(sc.nome || custos.length)}`,
+        serviceCostId:sc.id || '',
+        descricao:sc.nome || sc.descricao || 'Custo operacional',
+        categoria:sc.funcao || sc.categoria || 'Operacional',
+        responsavel:sc.profissionalNome || getName('profissionais', sc.profissionalId) || sc.responsavel || '',
+        profissionalId:sc.profissionalId || '',
+        valor:total,
+        valorUnitario:unit,
+        quantidadeAplicada:quantidade,
+        multiplicaPorQuantidade:true,
+        parcelas:1,
+        frequencia:'única',
+        origem:'servico_operacional'
+      }, custos.length));
+    });
+
+    const manual = vvsManualCosts(input?.manualCosts || input?.custos || [], service);
+    manual.forEach(c => custos.push(c));
+
+    return custos.map((c, idx) => normalizeOpportunityCost(Object.assign({}, c, {id: c.id || uid('cst')}), idx));
+  }
+
+  defaultOpportunityCosts = function(o){
+    return vvsBuildFinancialCosts({
+      servicoId:o?.servicoId,
+      profissionalId:o?.profissionalId,
+      valorUnitario:o?.valorUnitario,
+      quantidade:o?.quantidade,
+      valor:o?.valor,
+      manualCosts:o?.custos || []
+    });
+  };
+
+  function vvsReplaceOpportunityCostRows(costs){
+    const list = $('#oppCostsList');
+    if(!list) return;
+    list.innerHTML = (costs || []).map(renderCostRow).join('');
+    $$('[data-remove-cost]', list).forEach(btn => btn.onclick = () => {
+      btn.closest('[data-cost-row]')?.remove();
+      updateCostSummary();
+    });
+    $$('[data-cost-field="valor"]', list).forEach(input => input.oninput = updateCostSummary);
+  }
+
+  window.syncOpportunityCostsFromFields = function(preserveManual){
+    const list = $('#oppCostsList');
+    if(!list) return;
+    const service = byId(DB.servicos, formValue('servicoId'));
+    const manualCosts = preserveManual ? vvsManualCosts(collectOpportunityCostsFromDOM(), service) : [];
+    const quantidade = Math.max(1, Number(numberValue('quantidade') || 1));
+    const valorUnitario = numberValue('valorUnitario');
+    const costs = vvsBuildFinancialCosts({
+      servicoId:formValue('servicoId'),
+      profissionalId:formValue('profissionalId'),
+      valorUnitario,
+      quantidade,
+      valor:round2(valorUnitario * quantidade),
+      manualCosts
+    });
+    vvsReplaceOpportunityCostRows(costs);
+    updateCostSummary();
+  };
+
+  function vvsBuildAccountsForSale(venda, opportunity, installments, costs){
+    DB.contas = Array.isArray(DB.contas) ? DB.contas : [];
+    const financeiro = {receivableIds:[], payableIds:[]};
+    const saleTotal = round2(Number(venda.valor || 0));
+    const parcelas = Array.isArray(installments) && installments.length ? installments : [{
+      label:'À vista',
+      valor:saleTotal,
+      vencimento:venda.vencimento || venda.data || todayISO(),
+      status:'aberto',
+      index:1,
+      total:1
+    }];
+
+    parcelas.forEach((parcel, idx) => {
+      const conta = meta({
+        id:uid('cta'),
+        tipo:'receber',
+        status:parcel.status || 'aberto',
+        descricao:`${parcel.label || `Parcela ${idx+1}/${parcelas.length}`} — ${getName('clientes', venda.clienteId) || venda.clienteNome || 'Cliente'}`,
+        valor:round2(parcel.valor),
+        vencimento:parcel.vencimento || venda.vencimento || venda.data || todayISO(),
+        categoria:'Venda',
+        vendaId:venda.id,
+        oportunidadeId:opportunity?.id || venda.oportunidadeId || '',
+        clienteId:venda.clienteId,
+        servicoId:venda.servicoId,
+        parcelaLabel:parcel.label || `Parcela ${idx+1}/${parcelas.length}`,
+        parcelaIndex:idx+1,
+        parcelaTotal:parcelas.length,
+        observacoes:'Gerado automaticamente pela venda.'
+      }, true);
+      DB.contas.unshift(conta);
+      financeiro.receivableIds.push(conta.id);
+      audit('contas','create-receivable-auto',null,conta,'Recebível gerado pela venda');
+    });
+
+    (costs || []).forEach(cost => {
+      const costValue = round2(Number(cost.valor || 0));
+      if(costValue <= 0 || saleTotal <= 0) return;
+      let running = 0;
+      parcelas.forEach((parcel, idx) => {
+        let part = round2(costValue * (Number(parcel.valor || 0) / saleTotal));
+        if(idx === parcelas.length - 1) part = round2(costValue - running);
+        running = round2(running + part);
+        if(part <= 0) return;
+        const payable = meta({
+          id:uid('cta'),
+          tipo:'pagar',
+          status:'aberto',
+          descricao:`${cost.descricao || cost.categoria || 'Custo'} — ${parcel.label || `Parcela ${idx+1}/${parcelas.length}`}`,
+          valor:part,
+          vencimento:parcel.vencimento || venda.vencimento || venda.data || todayISO(),
+          categoria:cost.categoria || 'Custo',
+          responsavel:cost.responsavel || '',
+          profissionalId:cost.profissionalId || '',
+          vendaId:venda.id,
+          oportunidadeId:opportunity?.id || venda.oportunidadeId || '',
+          clienteId:venda.clienteId,
+          servicoId:venda.servicoId,
+          parcelaLabel:parcel.label || `Parcela ${idx+1}/${parcelas.length}`,
+          parcelaIndex:idx+1,
+          parcelaTotal:parcelas.length,
+          observacoes:'Conta a pagar proporcional gerada pela venda.'
+        }, true);
+        DB.contas.unshift(payable);
+        financeiro.payableIds.push(payable.id);
+        audit('contas','create-payable-auto',null,payable,'Conta a pagar gerada pela venda');
+      });
+    });
+    return financeiro;
+  }
+
+  function vvsRemoveOpenAccountsForSale(saleId){
+    const linked = (DB.contas || []).filter(c => c.vendaId === saleId);
+    const hasPaid = linked.some(c => ['pago','recebido','baixado'].includes(String(c.status||'').toLowerCase()));
+    DB.contas = (DB.contas || []).filter(c => c.vendaId !== saleId || ['pago','recebido','baixado'].includes(String(c.status||'').toLowerCase()));
+    return {hasPaid};
+  }
+
+  saveVenda = function(record){
+    if(!formValue('clienteId')){ toast('Selecione o cliente.'); $('#clienteId').focus(); return; }
+    if(!formValue('servicoId')){ toast('Selecione o serviço.'); $('#servicoId').focus(); return; }
+    const quantidade = Math.max(1, Number(numberValue('quantidade') || 1));
+    const valorUnitario = numberValue('valorUnitario');
+    const valor = round2(valorUnitario * quantidade);
+    if(valor <= 0){ toast('Informe um valor válido.'); $('#valorUnitario').focus(); return; }
+
+    const before = record ? JSON.parse(JSON.stringify(record)) : null;
+    const costs = vvsBuildFinancialCosts({
+      servicoId:formValue('servicoId'),
+      profissionalId:formValue('profissionalId'),
+      valorUnitario,
+      quantidade,
+      valor,
+      manualCosts:record?.custos || []
+    });
+    const custoTotal = opportunityCostsTotal(costs);
+    const payload = meta(Object.assign({}, record || {}, {
+      id:record?.id || nextSequentialCode('vendas','VENDA'),
+      data:formValue('data') || todayISO(),
+      status:formValue('status') || 'fechado',
+      valorUnitario,
+      quantidade,
+      valor,
+      custoTotal,
+      custos:costs,
+      margem:round2(valor - custoTotal),
+      margemPercentual:valor ? round2(((valor - custoTotal) / valor) * 100) : 0,
+      clienteId:formValue('clienteId'),
+      servicoId:formValue('servicoId'),
+      profissionalId:formValue('profissionalId'),
+      vencimento:formValue('vencimento') || formValue('data') || todayISO(),
+      observacoes:formValue('observacoes')
+    }), !record);
+
+    if(record){
+      DB.vendas[DB.vendas.findIndex(x=>x.id===record.id)] = payload;
+      audit('vendas','update',before,payload);
+    }else{
+      DB.vendas.unshift(payload);
+      audit('vendas','create',null,payload);
+    }
+
+    if(formValue('gerarReceber') === 'sim' && payload.status === 'fechado'){
+      vvsRemoveOpenAccountsForSale(payload.id);
+      const installments = [{label:'À vista', valor:payload.valor, vencimento:payload.vencimento, status:'aberto', index:1, total:1}];
+      const financial = vvsBuildAccountsForSale(payload, null, installments, costs);
+      payload.contasReceberIds = financial.receivableIds;
+      payload.contasPagarIds = financial.payableIds;
+      const idx = DB.vendas.findIndex(x=>x.id===payload.id);
+      if(idx >= 0) DB.vendas[idx] = payload;
+    }
+
+    saveDB();
+    closeModal();
+    toast('Venda salva com cálculo financeiro auditado.');
+    stableRender();
+  };
+
+  function vvsAuditFinancialRecords(){
+    const issues = [];
+    (DB.vendas || []).forEach(v => {
+      const rece = (DB.contas || []).filter(c => c.tipo === 'receber' && c.vendaId === v.id);
+      const pay = (DB.contas || []).filter(c => c.tipo === 'pagar' && c.vendaId === v.id);
+      const receTotal = round2(rece.reduce((s,c)=>s+Number(c.valor||0),0));
+      const payTotal = round2(pay.reduce((s,c)=>s+Number(c.valor||0),0));
+      const custo = round2(Number(v.custoTotal || opportunityCostsTotal(v.custos || []) || 0));
+      const valor = round2(Number(v.valor || 0));
+      if(rece.length && Math.abs(receTotal - valor) > 0.05) issues.push(`Venda ${v.id}: receber ${money(receTotal)} diferente da venda ${money(valor)}.`);
+      if(pay.length && Math.abs(payTotal - custo) > 0.05) issues.push(`Venda ${v.id}: pagar ${money(payTotal)} diferente dos custos ${money(custo)}.`);
+      if(Math.abs(round2(valor - custo) - round2(Number(v.margem || v.resultadoEmpresa || (valor-custo)))) > 0.05) issues.push(`Venda ${v.id}: resultado/margem inconsistente.`);
+    });
+    return issues;
+  }
+
+  function vvsMigrateFinancialMath(){
+    let changed = false;
+    (DB.oportunidades || []).forEach(o => {
+      const costs = vvsBuildFinancialCosts({
+        servicoId:o.servicoId,
+        profissionalId:o.profissionalId,
+        valorUnitario:o.valorUnitario,
+        quantidade:o.quantidade,
+        valor:o.valor,
+        manualCosts:o.custos || []
+      });
+      const oldTotal = round2(opportunityCostsTotal(o.custos || []));
+      const newTotal = round2(opportunityCostsTotal(costs));
+      if(Math.abs(oldTotal - newTotal) > 0.05){
+        o.custos = costs;
+        o.custoTotal = newTotal;
+        o.margem = round2(Number(o.valor || 0) - newTotal);
+        o.atualizadoEm = todayISO();
+        changed = true;
+      }
+    });
+
+    (DB.vendas || []).forEach(v => {
+      const costs = vvsBuildFinancialCosts({
+        servicoId:v.servicoId,
+        profissionalId:v.profissionalId,
+        valorUnitario:v.valorUnitario,
+        quantidade:v.quantidade,
+        valor:v.valor,
+        manualCosts:v.custos || []
+      });
+      const custoTotal = round2(opportunityCostsTotal(costs));
+      if(Math.abs(round2(Number(v.custoTotal || 0)) - custoTotal) > 0.05){
+        v.custos = costs;
+        v.custoTotal = custoTotal;
+        v.margem = round2(Number(v.valor || 0) - custoTotal);
+        v.margemPercentual = Number(v.valor || 0) ? round2((v.margem / Number(v.valor || 0)) * 100) : 0;
+        v.atualizadoEm = todayISO();
+        changed = true;
+      }
+    });
+
+    if(changed){
+      audit('sistema','financial-migration',null,{ok:true,issues:vvsAuditFinancialRecords()},'Recalculo financeiro unitário x quantidade');
+      saveDB();
+    }
+    return changed;
+  }
+
+  try{ vvsMigrateFinancialMath(); }catch(err){ console.warn('Migração financeira VVS falhou:', err); }
+
+
   /* QA automático leve pós-patch: corrige status financeiros legados antes da primeira renderização. */
   fxlQAEnsureStatusForFinance();
 
@@ -8406,22 +8762,43 @@ function init(){
   }
 
   function costRowsFromModalOrOpportunity(o, valor){
-    let rows = [];
+    let manualRows = [];
     try{
-      if(typeof collectOpportunityCostsFromDOM === 'function') rows = collectOpportunityCostsFromDOM();
-    }catch(err){ console.warn('Falha ao coletar custos do DOM:', err); rows = []; }
-    if(!rows.length){
-      try{
-        if(typeof defaultOpportunityCosts === 'function') rows = defaultOpportunityCosts(Object.assign({}, o, {valor}));
-      }catch(err){ rows = []; }
+      if(typeof collectOpportunityCostsFromDOM === 'function') manualRows = collectOpportunityCostsFromDOM();
+    }catch(err){ console.warn('Falha ao coletar custos do DOM:', err); manualRows = []; }
+
+    try{
+      if(typeof vvsBuildFinancialCosts === 'function'){
+        const quantidade = Math.max(1, safeNum(selectedValue('quantidade') || o?.quantidade || 1));
+        const valorUnitario = safeNum(selectedValue('valorUnitario') || o?.valorUnitario || (quantidade ? safeNum(valor || o?.valor) / quantidade : safeNum(valor || o?.valor)));
+        return vvsBuildFinancialCosts({
+          servicoId:selectedValue('servicoId') || o?.servicoId || '',
+          profissionalId:selectedValue('profissionalId') || o?.profissionalId || '',
+          valorUnitario,
+          quantidade,
+          valor:safeRound(valorUnitario * quantidade),
+          manualCosts:manualRows
+        }).filter(c => safeNum(c.valor) >= 0);
+      }
+    }catch(err){
+      console.warn('Cálculo financeiro VVS falhou; usando fallback:', err);
     }
-    return (rows || []).map((c, index) => ({
+
+    if(!manualRows.length){
+      try{
+        if(typeof defaultOpportunityCosts === 'function') manualRows = defaultOpportunityCosts(Object.assign({}, o, {valor}));
+      }catch(err){ manualRows = []; }
+    }
+    return (manualRows || []).map((c, index) => ({
       id: c.id || safeId('cst'),
       descricao: c.descricao || c.nome || c.categoria || `Custo ${index + 1}`,
       categoria: c.categoria || 'Custo',
       responsavel: c.responsavel || c.responsavelNome || '',
       profissionalId: c.profissionalId || c.responsavelId || '',
       valor: safeRound(c.valor),
+      valorUnitario: safeRound(c.valorUnitario || c.valor || 0),
+      quantidadeAplicada: safeNum(c.quantidadeAplicada || c.quantidade || 1),
+      multiplicaPorQuantidade: !!c.multiplicaPorQuantidade,
       origem: c.origem || 'manual'
     })).filter(c => c.valor > 0 || c.descricao);
   }
@@ -8578,6 +8955,7 @@ function init(){
           const total = safeRound(qtd * unit);
           const valorEl = safe$('#valor');
           if(valorEl) valorEl.value = total;
+          try{ if(typeof syncOpportunityCostsFromFields === 'function') syncOpportunityCostsFromFields(true); }catch(err){ console.warn(err); }
           try{ if(typeof updatePaymentPreview === 'function') updatePaymentPreview(); }catch(err){ console.warn(err); }
         }
         ['quantidade','valorUnitario','profissionalId'].forEach(id => { const el=safe$('#'+id); if(el) el.oninput = recalc; if(el) el.onchange = recalc; });
@@ -8646,7 +9024,7 @@ function init(){
       const custoTotal = safeRound(costs.reduce((s,c)=>s+safeNum(c.valor),0));
 
       const venda = safeMeta({
-        id:safeId('ven'),
+        id:(typeof nextSequentialCode === 'function' ? nextSequentialCode('vendas','VENDA') : safeId('ven')),
         data:selectedValue('data') || safeToday(),
         status:'fechado',
         statusFinanceiro:installments.length > 1 ? 'parcialmente_recebida' : 'recebida',
