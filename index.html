@@ -1923,7 +1923,16 @@ body{
   const STORAGE_KEY = 'fxl_operacional_teste_zero_v1';
   const PREF_KEY = 'fxl_operacional_simples_prefs';
   const SUPA_KEY = 'fxl_operacional_supa_config';
+  const SUPA_DEFAULTS = {
+    url:'https://sjhzkuehvrymwbfxkugs.supabase.co',
+    anonKey:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqaHprdWVodnJ5bXdiZnhrdWdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3MDAwMzMsImV4cCI6MjA5NjI3NjAzM30.y1hCGyGVbcYH26fIRCL6_cBLAZE9z1heTctfWZtRFBY',
+    table:'vvs_backups',
+    recordId:'vvs-operacional'
+  };
+  const SUPA_ONLINE_MODE = true;
+  const SUPA_SYNC_STATE_KEY = 'vvs_operacional_online_sync_state';
   const CURRENT_USER = 'Operador Local';
+
 
   const $ = (sel, root=document) => root.querySelector(sel);
   const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
@@ -2027,6 +2036,9 @@ body{
 
   function saveDB(){
     localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
+    if(SUPA_ONLINE_MODE && typeof scheduleAutoSupabaseSync === 'function'){
+      scheduleAutoSupabaseSync('saveDB');
+    }
   }
 
   function audit(entity, action, before, after, reason=''){
@@ -4373,15 +4385,28 @@ body{
     if(btn) btn.setAttribute('aria-expanded','true');
   }
 
-  function getSupaConfig(){
+  function normalizeSupabaseUrl(url){
+    return String(url || '')
+      .trim()
+      .replace(/\/rest\/v1\/?$/i,'')
+      .replace(/\/+$/,'');
+  }
+
+  function getSupabaseConfig(){
     try{
-      return JSON.parse(localStorage.getItem(SUPA_KEY) || '{}');
+      const saved = JSON.parse(localStorage.getItem(SUPA_KEY) || '{}');
+      return Object.assign({}, SUPA_DEFAULTS, saved || {}, {
+        url: normalizeSupabaseUrl((saved && saved.url) || SUPA_DEFAULTS.url),
+        table: (saved && saved.table) || SUPA_DEFAULTS.table,
+        recordId: (saved && saved.recordId) || SUPA_DEFAULTS.recordId,
+        anonKey: (saved && saved.anonKey) || SUPA_DEFAULTS.anonKey
+      });
     }catch(_){
-      return {};
+      return Object.assign({}, SUPA_DEFAULTS);
     }
   }
 
-  function setSupaStatus(message, tone='warn'){
+  function setSupabaseStatus(message, tone='warn'){
     const el = $('#supaStatus');
     if(el){
       el.className = `sync-status ${tone}`;
@@ -4389,32 +4414,33 @@ body{
     }
   }
 
-  function saveSupaConfig(){
+  function saveSupabaseConfig(){
     const cfg = {
-      url: ($('#supaUrl')?.value || '').trim().replace(/\/+$/,''),
-      anonKey: ($('#supaKey')?.value || '').trim(),
-      table: ($('#supaTable')?.value || 'fxl_backups').trim(),
-      recordId: ($('#supaRecord')?.value || 'fxl-operacional').trim()
+      url: normalizeSupabaseUrl($('#supaUrl')?.value || SUPA_DEFAULTS.url),
+      anonKey: ($('#supaKey')?.value || SUPA_DEFAULTS.anonKey).trim(),
+      table: ($('#supaTable')?.value || SUPA_DEFAULTS.table).trim(),
+      recordId: ($('#supaRecord')?.value || SUPA_DEFAULTS.recordId).trim()
     };
     if(!cfg.url || !cfg.anonKey || !cfg.table || !cfg.recordId){
       toast('Preencha URL, anon key, tabela e ID do registro.');
-      setSupaStatus('Configuração incompleta. Preencha todos os campos.', 'bad');
+      setSupabaseStatus('Configuração incompleta. Preencha todos os campos.', 'bad');
       return null;
     }
     localStorage.setItem(SUPA_KEY, JSON.stringify(cfg));
-    toast('Configuração Supa salva no navegador.');
-    setSupaStatus('Configuração salva localmente. Pronto para sincronizar.', 'ok');
+    toast('Configuração Supabase salva no navegador.');
+    setSupabaseStatus('Configuração salva localmente. Pronto para sincronizar.', 'ok');
     return cfg;
   }
 
   async function supaRequest(method, payload){
-    const cfg = getSupaConfig();
+    const cfg = getSupabaseConfig();
     if(!cfg.url || !cfg.anonKey || !cfg.table || !cfg.recordId){
-      setSupaStatus('Configure a conexão Supa antes de sincronizar.', 'bad');
-      throw new Error('Configuração Supa incompleta.');
+      setSupabaseStatus('Configure a conexão Supabase antes de sincronizar.', 'bad');
+      throw new Error('Configuração Supabase incompleta.');
     }
 
-    const endpoint = `${cfg.url}/rest/v1/${encodeURIComponent(cfg.table)}?id=eq.${encodeURIComponent(cfg.recordId)}`;
+    const base = normalizeSupabaseUrl(cfg.url);
+    const endpoint = `${base}/rest/v1/${encodeURIComponent(cfg.table)}?id=eq.${encodeURIComponent(cfg.recordId)}`;
     const headers = {
       apikey: cfg.anonKey,
       Authorization: `Bearer ${cfg.anonKey}`,
@@ -4424,69 +4450,231 @@ body{
 
     if(method === 'GET'){
       const res = await fetch(endpoint + '&select=id,payload,updated_at', {headers});
-      if(!res.ok) throw new Error(`Falha ao ler Supa (${res.status}).`);
+      if(!res.ok) throw new Error(`Falha ao ler Supabase (${res.status}).`);
       return res.json();
     }
 
-    const res = await fetch(`${cfg.url}/rest/v1/${encodeURIComponent(cfg.table)}`, {
+    const res = await fetch(`${base}/rest/v1/${encodeURIComponent(cfg.table)}`, {
       method:'POST',
       headers,
       body: JSON.stringify({
         id: cfg.recordId,
+        workspace_id: 'vvs_default',
+        label: 'Backup principal VVS Operacional',
         payload,
         updated_at: new Date().toISOString()
       })
     });
-    if(!res.ok) throw new Error(`Falha ao salvar Supa (${res.status}).`);
+    if(!res.ok) throw new Error(`Falha ao salvar Supabase (${res.status}).`);
     return res.json();
   }
 
-  async function syncToSupa(){
-    try{
-      const cfg = saveSupaConfig();
-      if(!cfg) return;
-      setSupaStatus('Enviando dados para Supa...', 'warn');
-      await supaRequest('POST', DB);
-      audit('sistema','supa_sync_upload','backup',{reason:'Backup enviado para Supa'});
-      saveDB();
-      setSupaStatus(`Dados enviados para Supa em ${new Date().toLocaleString('pt-BR')}.`, 'ok');
-      toast('Backup enviado para Supa.');
-    }catch(err){
-      console.error(err);
-      setSupaStatus(err.message || 'Erro ao enviar para Supa.', 'bad');
-      toast('Erro ao enviar para Supa.');
+
+  function getBackupSummary(payload){
+    const db = payload || {};
+    const count = (key) => Array.isArray(db[key]) ? db[key].length : 0;
+    return {
+      clientes: count('clientes'),
+      servicos: count('servicos'),
+      profissionais: count('profissionais'),
+      oportunidades: count('oportunidades'),
+      vendas: count('vendas'),
+      contas: count('contas'),
+      audit: count('audit')
+    };
+  }
+
+  function formatBackupSummary(payload){
+    const s = getBackupSummary(payload);
+    return `clientes: ${s.clientes}, serviços: ${s.servicos}, profissionais: ${s.profissionais}, oportunidades: ${s.oportunidades}, vendas: ${s.vendas}, contas: ${s.contas}, auditoria: ${s.audit}`;
+  }
+
+  function isBackupOperationallyEmpty(payload){
+    const s = getBackupSummary(payload);
+    return !s.clientes && !s.servicos && !s.profissionais && !s.oportunidades && !s.vendas && !s.contas;
+  }
+
+  function getLocalSyncState(){
+    try{ return JSON.parse(localStorage.getItem(SUPA_SYNC_STATE_KEY) || '{}') || {}; }
+    catch(_){ return {}; }
+  }
+
+  function setLocalSyncState(patch){
+    const next = Object.assign({}, getLocalSyncState(), patch || {});
+    localStorage.setItem(SUPA_SYNC_STATE_KEY, JSON.stringify(next));
+    return next;
+  }
+
+  let supaSyncTimer = null;
+  let supaHydrating = false;
+  let supaAutoInFlight = false;
+
+  function setSupabaseStatusSafe(message, tone){
+    if(typeof setSupabaseStatus === 'function'){
+      try{ setSupabaseStatus(message, tone || 'ok'); }catch(_){}
     }
   }
 
-  async function syncFromSupa(){
+  function scheduleAutoSupabaseSync(reason='auto'){
+    if(!SUPA_ONLINE_MODE || supaHydrating || supaAutoInFlight) return;
+    if(isBackupOperationallyEmpty(DB)) return;
+    clearTimeout(supaSyncTimer);
+    supaSyncTimer = setTimeout(() => autoPushSupabase(reason), 1400);
+  }
+
+  async function autoPushSupabase(reason='auto'){
+    if(!SUPA_ONLINE_MODE || supaHydrating || supaAutoInFlight) return;
+    if(isBackupOperationallyEmpty(DB)) return;
+
+    supaAutoInFlight = true;
     try{
-      saveSupaConfig();
-      setSupaStatus('Buscando dados na Supa...', 'warn');
+      await supaRequest('POST', DB);
+      const resumo = formatBackupSummary(DB);
+      setLocalSyncState({lastUploadAt:new Date().toISOString(), lastUploadReason:reason, lastSummary:resumo});
+      setSupabaseStatusSafe(`Salvo automaticamente no Supabase. ${resumo}.`, 'ok');
+    }catch(err){
+      console.error('[VVS Supabase AutoSync]', err);
+      setLocalSyncState({lastErrorAt:new Date().toISOString(), lastError:err.message || String(err)});
+      setSupabaseStatusSafe(`Falha no salvamento automático no Supabase: ${err.message || err}`, 'bad');
+    }finally{
+      supaAutoInFlight = false;
+    }
+  }
+
+  async function bootSupabaseOnline(){
+    if(!SUPA_ONLINE_MODE) return;
+    const cfg = getSupabaseConfig();
+    if(!cfg.url || !cfg.anonKey || !cfg.table || !cfg.recordId) return;
+
+    try{
+      setSupabaseStatusSafe('Modo online ativo. Verificando backup no Supabase...', 'warn');
+      const rows = await supaRequest('GET');
+      const row = Array.isArray(rows) ? rows[0] : null;
+      const remotePayload = row && row.payload ? row.payload : null;
+      const remoteUpdated = row && row.updated_at ? row.updated_at : '';
+
+      if(remotePayload && !isBackupOperationallyEmpty(remotePayload)){
+        const localEmpty = isBackupOperationallyEmpty(DB);
+        const syncState = getLocalSyncState();
+        const localLastUpload = syncState.lastUploadAt || '';
+        const shouldUseRemote = localEmpty || (remoteUpdated && localLastUpload && new Date(remoteUpdated) > new Date(localLastUpload));
+
+        if(shouldUseRemote){
+          supaHydrating = true;
+          DB = normalizeDB(remotePayload);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
+          setLocalSyncState({lastDownloadAt:new Date().toISOString(), remoteUpdatedAt:remoteUpdated, lastSummary:formatBackupSummary(DB)});
+          supaHydrating = false;
+          stableRender();
+          setSupabaseStatusSafe(`Dados carregados automaticamente do Supabase. ${formatBackupSummary(DB)}.`, 'ok');
+          toast('Dados carregados do Supabase.');
+          return;
+        }
+
+        setSupabaseStatusSafe(`Modo online ativo. Backup remoto encontrado. ${formatBackupSummary(remotePayload)}.`, 'ok');
+        return;
+      }
+
+      if(!isBackupOperationallyEmpty(DB)){
+        setSupabaseStatusSafe(`Modo online ativo. Supabase ainda vazio; enviando base local... ${formatBackupSummary(DB)}.`, 'warn');
+        scheduleAutoSupabaseSync('boot_first_upload');
+      }else{
+        setSupabaseStatusSafe('Modo online ativo. Base local e backup Supabase estão vazios. Cadastre dados para salvar automaticamente.', 'warn');
+      }
+    }catch(err){
+      console.error('[VVS Supabase Boot]', err);
+      setLocalSyncState({lastErrorAt:new Date().toISOString(), lastError:err.message || String(err)});
+      setSupabaseStatusSafe(`Não foi possível iniciar modo online: ${err.message || err}`, 'bad');
+    }finally{
+      supaHydrating = false;
+    }
+  }
+
+  async function testSupabaseConnection(){
+    try{
+      const cfg = saveSupabaseConfig();
+      if(!cfg) return;
+      setSupabaseStatus('Testando conexão com Supabase...', 'warn');
+      const rows = await supaRequest('GET');
+      const found = Array.isArray(rows) && rows.length > 0;
+      setSupabaseStatus(found
+        ? `Conexão OK. Backup encontrado em ${cfg.table}.`
+        : `Conexão OK. Nenhum backup ainda em ${cfg.table}; envie o primeiro backup.`,
+        'ok'
+      );
+      toast('Conexão Supabase OK.');
+    }catch(err){
+      console.error(err);
+      setSupabaseStatus(err.message || 'Erro ao testar conexão Supabase.', 'bad');
+      toast('Erro ao testar Supabase.');
+    }
+  }
+
+  async function syncToSupabase(){
+    try{
+      const cfg = saveSupabaseConfig();
+      if(!cfg) return;
+      const resumo = formatBackupSummary(DB);
+      const vazio = isBackupOperationallyEmpty(DB);
+      if(vazio){
+        setSupabaseStatus(`A base local está vazia (${resumo}). Envio bloqueado para evitar sobrescrever um backup útil com dados vazios.`, 'bad');
+        toast('Base local vazia. Nada foi enviado.');
+        return;
+      }
+      setSupabaseStatus(`Enviando dados para Supabase... ${resumo}`, 'warn');
+      await supaRequest('POST', DB);
+      setLocalSyncState({lastUploadAt:new Date().toISOString(), lastUploadReason:'manual', lastSummary:resumo});
+      audit('sistema','supa_sync_upload','backup',{reason:'Backup enviado para Supabase', resumo});
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
+      setSupabaseStatus(`Dados enviados para Supabase em ${new Date().toLocaleString('pt-BR')}. Conteúdo: ${resumo}.`, 'ok');
+      toast('Backup enviado para Supabase.');
+    }catch(err){
+      console.error(err);
+      setSupabaseStatus(err.message || 'Erro ao enviar para Supabase.', 'bad');
+      toast('Erro ao enviar para Supabase.');
+    }
+  }
+
+  async function syncFromSupabase(){
+    try{
+      const cfg = saveSupabaseConfig();
+      if(!cfg) return;
+      setSupabaseStatus('Buscando dados na Supabase...', 'warn');
       const rows = await supaRequest('GET');
       if(!rows || !rows[0] || !rows[0].payload){
-        setSupaStatus('Nenhum backup encontrado na Supa para este ID.', 'bad');
+        setSupabaseStatus('Nenhum backup encontrado na Supabase para este ID.', 'bad');
         toast('Nenhum backup encontrado.');
         return;
       }
-      confirmAction('Importar da Supa', 'Isso substituirá a base local atual pelo backup salvo na Supa.', 'Importar', ()=>{
-        DB = normalizeDB(rows[0].payload);
-        audit('sistema','supa_sync_download','backup',{reason:'Backup importado da Supa'});
-        saveDB();
-        setSupaStatus(`Dados importados da Supa em ${new Date().toLocaleString('pt-BR')}.`, 'ok');
-        toast('Backup importado da Supa.');
+      const payload = rows[0].payload;
+      const resumo = formatBackupSummary(payload);
+      if(isBackupOperationallyEmpty(payload)){
+        setSupabaseStatus(`Backup encontrado, mas está vazio (${resumo}). Nada foi importado para não apagar a base local. Primeiro cadastre dados no sistema e clique em "Enviar para Supabase".`, 'bad');
+        toast('Backup da Supabase está vazio.');
+        return;
+      }
+      confirmAction('Importar da Supabase', `Isso substituirá a base local atual pelo backup salvo na Supabase. Conteúdo encontrado: ${resumo}.`, 'Importar', ()=>{
+        supaHydrating = true;
+        DB = normalizeDB(payload);
+        audit('sistema','supa_sync_download','backup',{reason:'Backup importado da Supabase', resumo});
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
+        setLocalSyncState({lastDownloadAt:new Date().toISOString(), remoteUpdatedAt:rows[0].updated_at || '', lastSummary:resumo});
+        supaHydrating = false;
+        setSupabaseStatus(`Dados importados da Supabase em ${new Date().toLocaleString('pt-BR')}. Conteúdo: ${resumo}.`, 'ok');
+        toast('Backup importado da Supabase.');
         stableRender();
       });
     }catch(err){
       console.error(err);
-      setSupaStatus(err.message || 'Erro ao buscar na Supa.', 'bad');
-      toast('Erro ao buscar na Supa.');
+      setSupabaseStatus(err.message || 'Erro ao buscar na Supabase.', 'bad');
+      toast('Erro ao buscar na Supabase.');
     }
   }
 
   function renderArquivos(){
-    pageMeta('Importar / Exportar','Backup local em JSON, exportações CSV e sincronização opcional com Supa.');
+    pageMeta('Importar / Exportar','Backup local em JSON, exportações CSV e sincronização opcional com Supabase.');
     const auditRows = DB.audit.slice(0,40);
-    const supa = getSupaConfig();
+    const supa = getSupabaseConfig();
     $('#content').innerHTML = `
       <div class="page-header">
         <div class="page-title"><h2>Arquivos</h2><p>Exporte, importe e preserve os dados locais do navegador.</p></div>
@@ -4516,24 +4704,25 @@ body{
       </div>
 
       <section class="panel">
-        <h3>Memória Supa opcional</h3>
-        <p class="note">Use esta área quando publicar o HTML no Git e quiser sincronizar o backup em uma tabela Supa. O sistema continua funcionando localmente se esses campos ficarem vazios.</p>
+        <h3>Memória Supabase online</h3>
+        <p class="note">Modo online ativo: ao publicar no GitHub Pages, o sistema carrega o backup do Supabase ao abrir e salva automaticamente após cadastros/edições. Os botões abaixo continuam disponíveis para teste e sincronização manual.</p>
         <div class="row2">
-          <div class="fld"><label for="supaUrl">URL do projeto Supa</label><input id="supaUrl" type="url" placeholder="https://seu-projeto.supabase.co" value="${escapeHTML(supa.url || '')}"></div>
+          <div class="fld"><label for="supaUrl">URL do projeto Supabase</label><input id="supaUrl" type="url" placeholder="https://seu-projeto.supabase.co" value="${escapeHTML(supa.url || '')}"></div>
           <div class="fld"><label for="supaKey">Anon key pública</label><input id="supaKey" type="password" autocomplete="off" placeholder="eyJ..." value="${escapeHTML(supa.anonKey || '')}"></div>
         </div>
         <div class="row2">
-          <div class="fld"><label for="supaTable">Tabela</label><input id="supaTable" type="text" value="${escapeHTML(supa.table || 'fxl_backups')}"></div>
-          <div class="fld"><label for="supaRecord">ID do backup</label><input id="supaRecord" type="text" value="${escapeHTML(supa.recordId || 'fxl-operacional')}"></div>
+          <div class="fld"><label for="supaTable">Tabela</label><input id="supaTable" type="text" value="${escapeHTML(supa.table || SUPA_DEFAULTS.table)}"></div>
+          <div class="fld"><label for="supaRecord">ID do backup</label><input id="supaRecord" type="text" value="${escapeHTML(supa.recordId || SUPA_DEFAULTS.recordId)}"></div>
         </div>
         <div class="toolbar">
           <div class="tool-left">
-            <button class="btn ghost" id="saveSupa" type="button">Salvar configuração</button>
-            <button class="btn teal" id="syncToSupa" type="button">Enviar para Supa</button>
-            <button class="btn ghost" id="syncFromSupa" type="button">Puxar da Supa</button>
+            <button class="btn ghost" id="saveSupabase" type="button">Salvar configuração</button>
+            <button class="btn ghost" id="testSupabase" type="button">Testar conexão</button>
+            <button class="btn teal" id="syncToSupabase" type="button">Enviar para Supabase</button>
+            <button class="btn ghost" id="syncFromSupabase" type="button">Puxar do Supabase</button>
           </div>
         </div>
-        <div class="sync-status" id="supaStatus">Modo local ativo. Configure a Supa somente quando quiser sincronizar dados fora do navegador.</div>
+        <div class="sync-status" id="supaStatus">Modo online ativo em vvs_backups. Cadastre dados e o sistema salvará automaticamente no Supabase. Use os botões para testar, enviar ou puxar manualmente.</div>
       </section>
 
       <section class="panel">
@@ -4575,9 +4764,10 @@ body{
     bindGlobalActions();
     $('#exportJSON').onclick = exportJSON;
     $('#importJSON').onclick = importJSON;
-    $('#saveSupa').onclick = saveSupaConfig;
-    $('#syncToSupa').onclick = syncToSupa;
-    $('#syncFromSupa').onclick = syncFromSupa;
+    $('#saveSupabase').onclick = saveSupabaseConfig;
+    $('#testSupabase').onclick = testSupabaseConnection;
+    $('#syncToSupabase').onclick = syncToSupabase;
+    $('#syncFromSupabase').onclick = syncFromSupabase;
     if($('#runQA')) $('#runQA').onclick = () => executeQAReport();
     if($('#runQASimulation')) $('#runQASimulation').onclick = () => executeQASimulation();
     if($('#repairQA')) $('#repairQA').onclick = () => repairSafeDataLinks();
@@ -7048,6 +7238,7 @@ function render(){
       setRoute('dashboard');
     });
     render();
+    setTimeout(bootSupabaseOnline, 300);
   }
 
 
