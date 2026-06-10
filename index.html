@@ -1999,6 +1999,122 @@ body{
 
   let DB = loadDB();
 
+  /* ==========================================================================
+     CÓDIGOS OPERACIONAIS PADRONIZADOS
+     Regra: oportunidades e vendas usam código legível, sequencial e reaproveitável.
+     Ex.: OPORT-001, OPORT-002, VENDA-001, VENDA-002.
+     Se um registro for excluído, o menor número livre volta a ser usado no próximo cadastro.
+     ========================================================================== */
+
+  function sequentialPattern(prefix){
+    return new RegExp('^' + String(prefix).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '-(\\d+)$', 'i');
+  }
+
+  function formatSequentialCode(prefix, number){
+    return `${prefix}-${String(Math.max(1, Number(number) || 1)).padStart(3, '0')}`;
+  }
+
+  function isSequentialCode(id, prefix){
+    return sequentialPattern(prefix).test(String(id || '').trim());
+  }
+
+  function usedSequentialNumbers(collectionKey, prefix){
+    const used = new Set();
+    const re = sequentialPattern(prefix);
+    ((DB && DB[collectionKey]) || []).forEach(item => {
+      const match = String(item && item.id || '').trim().match(re);
+      if(match) used.add(Number(match[1]));
+    });
+    return used;
+  }
+
+  function nextSequentialCode(collectionKey, prefix){
+    const used = usedSequentialNumbers(collectionKey, prefix);
+    let n = 1;
+    while(used.has(n)) n += 1;
+    return formatSequentialCode(prefix, n);
+  }
+
+  function assignSequentialCodesForExistingData(){
+    if(!DB) return false;
+    let changed = false;
+
+    const normalizeCollection = (collectionKey, prefix, sortFn, applyRefs) => {
+      const list = Array.isArray(DB[collectionKey]) ? DB[collectionKey] : [];
+      if(!list.length) return;
+      const used = usedSequentialNumbers(collectionKey, prefix);
+      const pending = list
+        .filter(item => item && !isSequentialCode(item.id, prefix))
+        .slice()
+        .sort(sortFn);
+
+      pending.forEach(item => {
+        const oldId = item.id;
+        let n = 1;
+        while(used.has(n)) n += 1;
+        const newId = formatSequentialCode(prefix, n);
+        used.add(n);
+        item.id = newId;
+        if(item.raw && typeof item.raw === 'object') item.raw.codigoAnterior = oldId;
+        if(applyRefs) applyRefs(oldId, newId);
+        changed = true;
+      });
+    };
+
+    normalizeCollection(
+      'oportunidades',
+      'OPORT',
+      (a,b) => String(a.criadoEm || a.dataEntrada || a.createdAt || a.id || '').localeCompare(String(b.criadoEm || b.dataEntrada || b.createdAt || b.id || '')),
+      (oldId, newId) => {
+        (DB.vendas || []).forEach(v => {
+          if(v.oportunidadeId === oldId) v.oportunidadeId = newId;
+        });
+        (DB.contas || []).forEach(c => {
+          if(c.oportunidadeId === oldId) c.oportunidadeId = newId;
+        });
+        (DB.audit || []).forEach(a => {
+          if(a.entityId === oldId || a.entity_id === oldId){
+            if(a.entityId === oldId) a.entityId = newId;
+            if(a.entity_id === oldId) a.entity_id = newId;
+          }
+        });
+      }
+    );
+
+    normalizeCollection(
+      'vendas',
+      'VENDA',
+      (a,b) => String(a.criadoEm || a.data || a.createdAt || a.id || '').localeCompare(String(b.criadoEm || b.data || b.createdAt || b.id || '')),
+      (oldId, newId) => {
+        (DB.oportunidades || []).forEach(o => {
+          if(o.vendaId === oldId) o.vendaId = newId;
+        });
+        (DB.contas || []).forEach(c => {
+          if(c.vendaId === oldId) c.vendaId = newId;
+        });
+        (DB.audit || []).forEach(a => {
+          if(a.entityId === oldId || a.entity_id === oldId){
+            if(a.entityId === oldId) a.entityId = newId;
+            if(a.entity_id === oldId) a.entity_id = newId;
+          }
+        });
+      }
+    );
+
+    if(changed){
+      try{
+        audit('sistema','normalize-codes',null,{oportunidades:DB.oportunidades.length,vendas:DB.vendas.length},'Códigos operacionais padronizados automaticamente');
+      }catch(_){}
+    }
+
+    return changed;
+  }
+
+  if(assignSequentialCodesForExistingData()){
+    try{ saveDB(); }catch(_){}
+  }
+
+
   function loadDB(){
     try{
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -3391,7 +3507,7 @@ body{
     const mainFollow = formValue('followup') || (followups.filter(f=>followupStatus(f)!=='concluido').sort((a,b)=>String(a.data||'').localeCompare(String(b.data||'')))[0]?.data || '');
 
     const payload = meta(Object.assign({}, record || {}, {
-      id:record?.id || uid('opp'),
+      id:record?.id || nextSequentialCode('oportunidades','OPORT'),
       contato,
       empresa:formValue('empresa'),
       telefone:formValue('telefone'),
@@ -3515,7 +3631,7 @@ body{
     const beforeOpp = Object.assign({}, o);
     const stageBeforeWon = o._pendingStageBeforeWon || o.stageBeforeWon || (o.etapa && o.etapa !== 'fechado_ganho' ? o.etapa : 'negociacao');
     const venda = meta({
-      id:uid('ven'),
+      id:nextSequentialCode('vendas','VENDA'),
       data:formValue('data') || todayISO(),
       status:'fechado',
       valorUnitario,
@@ -4274,7 +4390,7 @@ body{
     if(valor <= 0){ toast('Informe um valor válido.'); $('#valorUnitario').focus(); return; }
     const before = record ? Object.assign({}, record) : null;
     const payload = meta(Object.assign({}, record || {}, {
-      id:record?.id || uid('ven'),
+      id:record?.id || nextSequentialCode('vendas','VENDA'),
       data:formValue('data') || todayISO(),
       status:formValue('status') || 'fechado',
       valor,
@@ -4371,20 +4487,60 @@ body{
   function deleteVenda(id){
     const venda = byId(DB.vendas, id);
     if(!venda) return;
-    const conta = DB.contas.find(c=>c.vendaId===id);
-    if(conta && conta.status === 'pago'){
-      toast('Não é possível excluir venda com recebimento já baixado.');
+
+    const contasVinculadas = (DB.contas || []).filter(c => c.vendaId === id);
+    const possuiBaixa = contasVinculadas.some(c => ['pago','recebido','baixado'].includes(String(c.status || '').toLowerCase()));
+
+    if(possuiBaixa){
+      toast('Não é possível excluir venda com conta já baixada. Estorne a baixa antes.');
       return;
     }
-    confirmAction('Excluir venda', conta ? 'A venda possui conta a receber aberta. Ela também será removida.' : 'Excluir esta venda?', 'Excluir', (reason)=>{
-      if(conta){
-        DB.contas = DB.contas.filter(c=>c.id!==conta.id);
-        audit('contas','delete-auto',conta,null,'Venda excluída');
+
+    const oportunidadesVinculadas = (DB.oportunidades || []).filter(o => o.vendaId === id);
+    const detalhe = [
+      `Código da venda: ${id}`,
+      contasVinculadas.length ? `${contasVinculadas.length} conta(s) vinculada(s) também serão removidas.` : '',
+      oportunidadesVinculadas.length ? `${oportunidadesVinculadas.length} oportunidade(s) vinculada(s) voltarão para a etapa anterior.` : '',
+      'Após excluir, este código fica livre para a próxima venda.'
+    ].filter(Boolean).join(' ');
+
+    confirmAction('Excluir venda', detalhe, 'Excluir', (reason)=>{
+      if(contasVinculadas.length){
+        contasVinculadas.forEach(conta => audit('contas','delete-auto',conta,null,'Venda excluída: ' + id));
+        DB.contas = (DB.contas || []).filter(c => c.vendaId !== id);
       }
-      DB.vendas = DB.vendas.filter(v=>v.id!==id);
-      audit('vendas','delete',venda,null,reason);
+
+      if(oportunidadesVinculadas.length){
+        oportunidadesVinculadas.forEach(o => {
+          const beforeOpp = JSON.parse(JSON.stringify(o));
+          o.vendaId = '';
+          o.status = 'em_andamento';
+          o.etapa = o.stageBeforeWon || 'negociacao';
+          o.dataFechamento = '';
+          o.formaPagamento = '';
+          o.parcelas = [];
+          o.contasReceberIds = [];
+          o.contasPagarIds = [];
+          o.atualizadoEm = todayISO();
+          o.atualizadoPor = CURRENT_USER;
+          o.historico = Array.isArray(o.historico) ? o.historico : [];
+          o.historico.unshift({
+            id:uid('his'),
+            tipo:'venda-excluida',
+            texto:`Venda ${id} excluída. Oportunidade retornou para ${stageLabel(o.etapa)}.`,
+            motivo:reason || 'Venda criada incorretamente',
+            createdAt:new Date().toISOString(),
+            user:CURRENT_USER
+          });
+          audit('oportunidades','unlink-sale',beforeOpp,o,'Venda excluída: ' + id);
+        });
+      }
+
+      DB.vendas = (DB.vendas || []).filter(v => v.id !== id);
+      audit('vendas','delete',venda,null,reason || 'Venda excluída');
+
       saveDB();
-      toast('Venda excluída.');
+      toast(`Venda ${id} excluída. Código liberado para reutilização.`);
       stableRender();
     }, true);
   }
@@ -4575,6 +4731,7 @@ body{
     confirmAction('Restaurar backup local de segurança', `Isso substituirá a base atual pelo último backup local de segurança (${formatDateTimeBR(backup.createdAt)}). Conteúdo: ${resumo}.`, 'Restaurar', ()=>{
       supaHydrating = true;
       DB = normalizeDB(backup.payload);
+      assignSequentialCodesForExistingData();
       audit('sistema','restore_local_safety_backup','backup',{reason:'Restauração do backup local de segurança', resumo});
       localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
       setLocalSyncState({lastSafetyRestoreAt:new Date().toISOString(), lastSummary:formatBackupSummary(DB)});
@@ -4667,6 +4824,7 @@ body{
         if(shouldUseRemote){
           supaHydrating = true;
           DB = normalizeDB(remotePayload);
+          assignSequentialCodesForExistingData();
           localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
           setLocalSyncState({syncStatus:'carregado', lastDownloadAt:new Date().toISOString(), remoteUpdatedAt:remoteUpdated, lastSummary:formatBackupSummary(DB), remoteSummary:formatBackupSummary(DB), lastError:''});
           supaHydrating = false;
@@ -4791,6 +4949,7 @@ body{
         const safety = saveLocalSafetyBackup('before_supabase_import');
         supaHydrating = true;
         DB = normalizeDB(payload);
+        assignSequentialCodesForExistingData();
         audit('sistema','supa_sync_download','backup',{reason:'Backup importado da Supabase', resumo, safetyBackupId:safety ? safety.id : null});
         localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
         setLocalSyncState({syncStatus:'carregado', lastDownloadAt:new Date().toISOString(), remoteUpdatedAt:rows[0].updated_at || '', lastSummary:resumo, remoteSummary:resumo, lastError:''});
@@ -6150,7 +6309,7 @@ function render(){
     const quantidade = Math.max(1, Number(numberValue('quantidade') || 1));
     const valorUnitario = numberValue('valorUnitario');
     const payload = meta(Object.assign({}, record || {}, {
-      id:record?.id || uid('opp'),
+      id:record?.id || nextSequentialCode('oportunidades','OPORT'),
       clienteId:formValue('clienteIdHidden'),
       contato,
       empresa:formValue('empresa'),
@@ -6264,7 +6423,7 @@ function render(){
     const costs = collectOpportunityCostsFromDOM();
     const installments = buildInstallments(valor, formValue('paymentMode'), formValue('firstPaymentDate') || todayISO());
     const venda = meta({
-      id:uid('ven'),
+      id:nextSequentialCode('vendas','VENDA'),
       data:formValue('data') || todayISO(),
       status:'fechado',
       statusFinanceiro:installments.length > 1 ? 'parcialmente_recebida' : 'recebida',
@@ -6412,7 +6571,7 @@ function render(){
     const costs = collectOpportunityCostsFromDOM();
     const installments = buildInstallments(valor, formValue('paymentMode'), formValue('firstPaymentDate') || todayISO());
     const payload = meta(Object.assign({}, record || {}, {
-      id:record?.id || uid('ven'),
+      id:record?.id || nextSequentialCode('vendas','VENDA'),
       data:formValue('data') || todayISO(),
       status:formValue('status') || 'fechado',
       statusFinanceiro:installments.length > 1 ? 'parcialmente_recebida' : 'recebida',
@@ -7263,7 +7422,7 @@ function render(){
       DB.clientes.unshift(cli);
       DB.profissionais.unshift(vendedor, prof);
       DB.servicos.unshift(serv);
-      const opp = meta({id:uid('opp'),contato:cli.nome,clienteId:cli.id,servicoId:serv.id,profissionalId:vendedor.id,etapa:'negociacao',status:'em_andamento',valorUnitario:1000,quantidade:1,valor:1000,custos:automaticOpportunityCostsFromDraft({servicoId:serv.id,profissionalId:vendedor.id,valor:1000},[]),dataEntrada:todayISO(),historico:[],followups:[]}, true);
+      const opp = meta({id:nextSequentialCode('oportunidades','OPORT'),contato:cli.nome,clienteId:cli.id,servicoId:serv.id,profissionalId:vendedor.id,etapa:'negociacao',status:'em_andamento',valorUnitario:1000,quantidade:1,valor:1000,custos:automaticOpportunityCostsFromDraft({servicoId:serv.id,profissionalId:vendedor.id,valor:1000},[]),dataEntrada:todayISO(),historico:[],followups:[]}, true);
       DB.oportunidades.unshift(opp);
       const installments = [
         {label:'Entrada',valor:400,vencimento:todayISO(),status:'pago',index:1,total:3},
@@ -7271,7 +7430,7 @@ function render(){
         {label:'Parcela 3/3',valor:300,vencimento:monthAddISO(todayISO(),2),status:'aberto',index:3,total:3}
       ];
       const costs = automaticOpportunityCostsFromDraft({servicoId:serv.id,profissionalId:vendedor.id,valor:1000},[]);
-      const venda = meta({id:uid('ven'),data:todayISO(),status:'fechado',statusFinanceiro:'parcialmente_recebida',formaPagamento:'Entrada + parcelas',paymentMode:'entrada',parcelas:installments,valorUnitario:1000,quantidade:1,valor:1000,clienteId:cli.id,servicoId:serv.id,profissionalId:vendedor.id,oportunidadeId:opp.id,custos:costs,custoTotal:opportunityCostsTotal(costs),margem:round2(1000-opportunityCostsTotal(costs))}, true);
+      const venda = meta({id:nextSequentialCode('vendas','VENDA'),data:todayISO(),status:'fechado',statusFinanceiro:'parcialmente_recebida',formaPagamento:'Entrada + parcelas',paymentMode:'entrada',parcelas:installments,valorUnitario:1000,quantidade:1,valor:1000,clienteId:cli.id,servicoId:serv.id,profissionalId:vendedor.id,oportunidadeId:opp.id,custos:costs,custoTotal:opportunityCostsTotal(costs),margem:round2(1000-opportunityCostsTotal(costs))}, true);
       const financial = createAccountsForSale(venda, opp, installments, costs);
       venda.contasReceberIds = financial.receivableIds;
       venda.contasPagarIds = financial.payableIds;
@@ -7591,7 +7750,7 @@ function render(){
       const stageBeforeWon = oppInDB._pendingStageBeforeWon || oppInDB.stageBeforeWon || (oppInDB.etapa && oppInDB.etapa !== 'fechado_ganho' ? oppInDB.etapa : 'negociacao');
 
       const venda = meta({
-        id:uid('ven'),
+        id:nextSequentialCode('vendas','VENDA'),
         data:formValue('data') || todayISO(),
         status:'fechado',
         statusFinanceiro:normalizedInstallments.rows.length > 1 ? 'parcialmente_recebida' : 'recebida',
@@ -7964,7 +8123,7 @@ function render(){
       if(btn){ btn.disabled = true; btn.textContent = 'Confirmando...'; }
 
       const venda = fxlV3Meta({
-        id:uid('ven'),
+        id:nextSequentialCode('vendas','VENDA'),
         data:fxlV3Read('data') || todayISO(),
         status:'fechado',
         statusFinanceiro:parcelamento.rows.length > 1 ? 'parcialmente_recebida' : 'recebida',
