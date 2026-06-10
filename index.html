@@ -1840,6 +1840,22 @@ body{
   }
 }
 
+
+/* ==========================================================================
+   VVS SUPABASE ONLINE — status operacional e backup de segurança
+   ========================================================================== */
+.sync-health-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:12px 0}
+.sync-health-card{border:1px solid var(--line);background:#fff;border-radius:var(--r-sm);padding:10px 12px;min-width:0}
+.sync-health-card small{display:block;color:var(--ink-2);font-size:11px;margin-bottom:4px}
+.sync-health-card strong{display:block;font-family:'JetBrains Mono',monospace;font-size:12px;overflow-wrap:anywhere}
+.sync-health-card .ok{color:var(--green)}
+.sync-health-card .warn{color:var(--amber)}
+.sync-health-card .bad{color:var(--red)}
+.sync-actions-extra{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.sync-mini-note{color:var(--ink-2);font-size:12px;margin-top:6px}
+@media(max-width:900px){.sync-health-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.sync-health-grid{grid-template-columns:1fr}.sync-actions-extra .btn{width:100%}}
+
 </style>
 </head>
 <body>
@@ -1931,6 +1947,7 @@ body{
   };
   const SUPA_ONLINE_MODE = true;
   const SUPA_SYNC_STATE_KEY = 'vvs_operacional_online_sync_state';
+  const SUPA_LOCAL_SAFETY_KEY = 'vvs_operacional_ultimo_backup_seguro_local';
   const CURRENT_USER = 'Operador Local';
 
 
@@ -4505,6 +4522,88 @@ body{
     return next;
   }
 
+  function formatDateTimeBR(value){
+    if(!value) return '—';
+    try{
+      const dt = new Date(value);
+      if(Number.isNaN(dt.getTime())) return '—';
+      return dt.toLocaleString('pt-BR');
+    }catch(_){
+      return '—';
+    }
+  }
+
+  function getOperationalCount(payload){
+    const s = getBackupSummary(payload);
+    return s.clientes + s.servicos + s.profissionais + s.oportunidades + s.vendas + s.contas;
+  }
+
+  function saveLocalSafetyBackup(reason='manual'){
+    try{
+      const snapshot = {
+        id:uid('safe'),
+        reason,
+        createdAt:new Date().toISOString(),
+        summary:formatBackupSummary(DB),
+        payload:JSON.parse(JSON.stringify(DB || {}))
+      };
+      localStorage.setItem(SUPA_LOCAL_SAFETY_KEY, JSON.stringify(snapshot));
+      setLocalSyncState({lastSafetyBackupAt:snapshot.createdAt, lastSafetyBackupReason:reason});
+      return snapshot;
+    }catch(err){
+      console.warn('[VVS Safety Backup]', err);
+      return null;
+    }
+  }
+
+  function getLocalSafetyBackup(){
+    try{
+      return JSON.parse(localStorage.getItem(SUPA_LOCAL_SAFETY_KEY) || 'null');
+    }catch(_){
+      return null;
+    }
+  }
+
+  function restoreLocalSafetyBackup(){
+    const backup = getLocalSafetyBackup();
+    if(!backup || !backup.payload){
+      toast('Nenhum backup local de segurança encontrado.');
+      setSupabaseStatusSafe('Nenhum backup local de segurança encontrado neste navegador.', 'bad');
+      return;
+    }
+    const resumo = backup.summary || formatBackupSummary(backup.payload);
+    confirmAction('Restaurar backup local de segurança', `Isso substituirá a base atual pelo último backup local de segurança (${formatDateTimeBR(backup.createdAt)}). Conteúdo: ${resumo}.`, 'Restaurar', ()=>{
+      supaHydrating = true;
+      DB = normalizeDB(backup.payload);
+      audit('sistema','restore_local_safety_backup','backup',{reason:'Restauração do backup local de segurança', resumo});
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
+      setLocalSyncState({lastSafetyRestoreAt:new Date().toISOString(), lastSummary:formatBackupSummary(DB)});
+      supaHydrating = false;
+      setSupabaseStatusSafe(`Backup local de segurança restaurado. ${formatBackupSummary(DB)}.`, 'ok');
+      toast('Backup local de segurança restaurado.');
+      stableRender();
+    });
+  }
+
+  function refreshSupabaseHealthPanel(){
+    const sync = getLocalSyncState();
+    const safety = getLocalSafetyBackup();
+    const statusEl = $('#syncHealthStatus');
+    const uploadEl = $('#syncHealthUpload');
+    const downloadEl = $('#syncHealthDownload');
+    const safetyEl = $('#syncHealthSafety');
+    const localEl = $('#syncHealthLocal');
+    const remoteEl = $('#syncHealthRemote');
+    const errorEl = $('#syncHealthError');
+    if(statusEl) statusEl.innerHTML = navigator.onLine ? '<span class="ok">online</span>' : '<span class="bad">offline</span>';
+    if(uploadEl) uploadEl.textContent = formatDateTimeBR(sync.lastUploadAt);
+    if(downloadEl) downloadEl.textContent = formatDateTimeBR(sync.lastDownloadAt);
+    if(safetyEl) safetyEl.textContent = safety ? formatDateTimeBR(safety.createdAt) : '—';
+    if(localEl) localEl.textContent = formatBackupSummary(DB);
+    if(remoteEl) remoteEl.textContent = sync.remoteSummary || sync.lastSummary || '—';
+    if(errorEl) errorEl.textContent = sync.lastError ? `${formatDateTimeBR(sync.lastErrorAt)} · ${sync.lastError}` : '—';
+  }
+
   let supaSyncTimer = null;
   let supaHydrating = false;
   let supaAutoInFlight = false;
@@ -4527,19 +4626,25 @@ body{
     if(isBackupOperationallyEmpty(DB)) return;
 
     supaAutoInFlight = true;
+    const resumoInicial = formatBackupSummary(DB);
+    setLocalSyncState({syncStatus:'salvando', lastSyncStartedAt:new Date().toISOString(), lastSummary:resumoInicial});
+    setSupabaseStatusSafe(`Salvando automaticamente no Supabase... ${resumoInicial}.`, 'warn');
+    refreshSupabaseHealthPanel();
     try{
       await supaRequest('POST', DB);
       const resumo = formatBackupSummary(DB);
-      setLocalSyncState({lastUploadAt:new Date().toISOString(), lastUploadReason:reason, lastSummary:resumo});
+      setLocalSyncState({syncStatus:'salvo', lastUploadAt:new Date().toISOString(), lastUploadReason:reason, lastSummary:resumo, remoteSummary:resumo, lastError:''});
       setSupabaseStatusSafe(`Salvo automaticamente no Supabase. ${resumo}.`, 'ok');
     }catch(err){
       console.error('[VVS Supabase AutoSync]', err);
-      setLocalSyncState({lastErrorAt:new Date().toISOString(), lastError:err.message || String(err)});
+      setLocalSyncState({syncStatus:'erro', lastErrorAt:new Date().toISOString(), lastError:err.message || String(err)});
       setSupabaseStatusSafe(`Falha no salvamento automático no Supabase: ${err.message || err}`, 'bad');
     }finally{
       supaAutoInFlight = false;
+      refreshSupabaseHealthPanel();
     }
   }
+
 
   async function bootSupabaseOnline(){
     if(!SUPA_ONLINE_MODE) return;
@@ -4563,7 +4668,7 @@ body{
           supaHydrating = true;
           DB = normalizeDB(remotePayload);
           localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
-          setLocalSyncState({lastDownloadAt:new Date().toISOString(), remoteUpdatedAt:remoteUpdated, lastSummary:formatBackupSummary(DB)});
+          setLocalSyncState({syncStatus:'carregado', lastDownloadAt:new Date().toISOString(), remoteUpdatedAt:remoteUpdated, lastSummary:formatBackupSummary(DB), remoteSummary:formatBackupSummary(DB), lastError:''});
           supaHydrating = false;
           stableRender();
           setSupabaseStatusSafe(`Dados carregados automaticamente do Supabase. ${formatBackupSummary(DB)}.`, 'ok');
@@ -4571,7 +4676,9 @@ body{
           return;
         }
 
+        setLocalSyncState({remoteUpdatedAt:remoteUpdated, remoteSummary:formatBackupSummary(remotePayload)});
         setSupabaseStatusSafe(`Modo online ativo. Backup remoto encontrado. ${formatBackupSummary(remotePayload)}.`, 'ok');
+        refreshSupabaseHealthPanel();
         return;
       }
 
@@ -4597,18 +4704,25 @@ body{
       setSupabaseStatus('Testando conexão com Supabase...', 'warn');
       const rows = await supaRequest('GET');
       const found = Array.isArray(rows) && rows.length > 0;
+      const remotePayload = found && rows[0].payload ? rows[0].payload : null;
+      const remoteSummary = remotePayload ? formatBackupSummary(remotePayload) : '—';
+      setLocalSyncState({lastConnectionTestAt:new Date().toISOString(), remoteUpdatedAt:found ? (rows[0].updated_at || '') : '', remoteSummary, lastError:''});
       setSupabaseStatus(found
-        ? `Conexão OK. Backup encontrado em ${cfg.table}.`
+        ? `Conexão OK. Backup encontrado em ${cfg.table}. Conteúdo remoto: ${remoteSummary}.`
         : `Conexão OK. Nenhum backup ainda em ${cfg.table}; envie o primeiro backup.`,
         'ok'
       );
+      refreshSupabaseHealthPanel();
       toast('Conexão Supabase OK.');
     }catch(err){
       console.error(err);
+      setLocalSyncState({syncStatus:'erro', lastErrorAt:new Date().toISOString(), lastError:err.message || String(err)});
       setSupabaseStatus(err.message || 'Erro ao testar conexão Supabase.', 'bad');
+      refreshSupabaseHealthPanel();
       toast('Erro ao testar Supabase.');
     }
   }
+
 
   async function syncToSupabase(){
     try{
@@ -4617,64 +4731,92 @@ body{
       const resumo = formatBackupSummary(DB);
       const vazio = isBackupOperationallyEmpty(DB);
       if(vazio){
+        setLocalSyncState({syncStatus:'bloqueado', lastErrorAt:new Date().toISOString(), lastError:'Envio bloqueado: base local vazia'});
         setSupabaseStatus(`A base local está vazia (${resumo}). Envio bloqueado para evitar sobrescrever um backup útil com dados vazios.`, 'bad');
+        refreshSupabaseHealthPanel();
         toast('Base local vazia. Nada foi enviado.');
         return;
       }
-      setSupabaseStatus(`Enviando dados para Supabase... ${resumo}`, 'warn');
-      await supaRequest('POST', DB);
-      setLocalSyncState({lastUploadAt:new Date().toISOString(), lastUploadReason:'manual', lastSummary:resumo});
-      audit('sistema','supa_sync_upload','backup',{reason:'Backup enviado para Supabase', resumo});
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
-      setSupabaseStatus(`Dados enviados para Supabase em ${new Date().toLocaleString('pt-BR')}. Conteúdo: ${resumo}.`, 'ok');
-      toast('Backup enviado para Supabase.');
+
+      const doUpload = async () => {
+        setLocalSyncState({syncStatus:'salvando', lastSyncStartedAt:new Date().toISOString(), lastSummary:resumo});
+        setSupabaseStatus(`Enviando dados para Supabase... ${resumo}`, 'warn');
+        refreshSupabaseHealthPanel();
+        await supaRequest('POST', DB);
+        setLocalSyncState({syncStatus:'salvo', lastUploadAt:new Date().toISOString(), lastUploadReason:'manual', lastSummary:resumo, remoteSummary:resumo, lastError:''});
+        audit('sistema','supa_sync_upload','backup',{reason:'Backup enviado para Supabase', resumo});
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
+        setSupabaseStatus(`Dados enviados para Supabase em ${new Date().toLocaleString('pt-BR')}. Conteúdo: ${resumo}.`, 'ok');
+        refreshSupabaseHealthPanel();
+        toast('Backup enviado para Supabase.');
+      };
+
+      confirmAction('Enviar para Supabase', `Isso vai substituir o backup online pelo estado local atual. Conteúdo local: ${resumo}.`, 'Enviar', doUpload);
     }catch(err){
       console.error(err);
+      setLocalSyncState({syncStatus:'erro', lastErrorAt:new Date().toISOString(), lastError:err.message || String(err)});
       setSupabaseStatus(err.message || 'Erro ao enviar para Supabase.', 'bad');
+      refreshSupabaseHealthPanel();
       toast('Erro ao enviar para Supabase.');
     }
   }
+
 
   async function syncFromSupabase(){
     try{
       const cfg = saveSupabaseConfig();
       if(!cfg) return;
+      setLocalSyncState({syncStatus:'baixando', lastSyncStartedAt:new Date().toISOString()});
       setSupabaseStatus('Buscando dados na Supabase...', 'warn');
+      refreshSupabaseHealthPanel();
       const rows = await supaRequest('GET');
       if(!rows || !rows[0] || !rows[0].payload){
+        setLocalSyncState({syncStatus:'sem_backup', lastErrorAt:new Date().toISOString(), lastError:'Nenhum backup encontrado na Supabase'});
         setSupabaseStatus('Nenhum backup encontrado na Supabase para este ID.', 'bad');
+        refreshSupabaseHealthPanel();
         toast('Nenhum backup encontrado.');
         return;
       }
       const payload = rows[0].payload;
       const resumo = formatBackupSummary(payload);
+      setLocalSyncState({remoteUpdatedAt:rows[0].updated_at || '', remoteSummary:resumo});
       if(isBackupOperationallyEmpty(payload)){
+        setLocalSyncState({syncStatus:'bloqueado', lastErrorAt:new Date().toISOString(), lastError:'Importação bloqueada: backup Supabase vazio'});
         setSupabaseStatus(`Backup encontrado, mas está vazio (${resumo}). Nada foi importado para não apagar a base local. Primeiro cadastre dados no sistema e clique em "Enviar para Supabase".`, 'bad');
+        refreshSupabaseHealthPanel();
         toast('Backup da Supabase está vazio.');
         return;
       }
-      confirmAction('Importar da Supabase', `Isso substituirá a base local atual pelo backup salvo na Supabase. Conteúdo encontrado: ${resumo}.`, 'Importar', ()=>{
+      confirmAction('Importar da Supabase', `Isso substituirá a base local atual pelo backup salvo na Supabase. Antes de importar, o sistema fará um backup local de segurança no navegador. Conteúdo encontrado: ${resumo}.`, 'Importar', ()=>{
+        const safety = saveLocalSafetyBackup('before_supabase_import');
         supaHydrating = true;
         DB = normalizeDB(payload);
-        audit('sistema','supa_sync_download','backup',{reason:'Backup importado da Supabase', resumo});
+        audit('sistema','supa_sync_download','backup',{reason:'Backup importado da Supabase', resumo, safetyBackupId:safety ? safety.id : null});
         localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
-        setLocalSyncState({lastDownloadAt:new Date().toISOString(), remoteUpdatedAt:rows[0].updated_at || '', lastSummary:resumo});
+        setLocalSyncState({syncStatus:'carregado', lastDownloadAt:new Date().toISOString(), remoteUpdatedAt:rows[0].updated_at || '', lastSummary:resumo, remoteSummary:resumo, lastError:''});
         supaHydrating = false;
-        setSupabaseStatus(`Dados importados da Supabase em ${new Date().toLocaleString('pt-BR')}. Conteúdo: ${resumo}.`, 'ok');
+        setSupabaseStatus(`Dados importados da Supabase em ${new Date().toLocaleString('pt-BR')}. Conteúdo: ${resumo}. Backup local de segurança criado antes da substituição.`, 'ok');
+        refreshSupabaseHealthPanel();
         toast('Backup importado da Supabase.');
         stableRender();
       });
     }catch(err){
       console.error(err);
+      setLocalSyncState({syncStatus:'erro', lastErrorAt:new Date().toISOString(), lastError:err.message || String(err)});
       setSupabaseStatus(err.message || 'Erro ao buscar na Supabase.', 'bad');
+      refreshSupabaseHealthPanel();
       toast('Erro ao buscar na Supabase.');
     }
   }
+
 
   function renderArquivos(){
     pageMeta('Importar / Exportar','Backup local em JSON, exportações CSV e sincronização opcional com Supabase.');
     const auditRows = DB.audit.slice(0,40);
     const supa = getSupabaseConfig();
+    const sync = getLocalSyncState();
+    const safety = getLocalSafetyBackup();
+    const localSummary = formatBackupSummary(DB);
     $('#content').innerHTML = `
       <div class="page-header">
         <div class="page-title"><h2>Arquivos</h2><p>Exporte, importe e preserve os dados locais do navegador.</p></div>
@@ -4718,10 +4860,23 @@ body{
           <div class="tool-left">
             <button class="btn ghost" id="saveSupabase" type="button">Salvar configuração</button>
             <button class="btn ghost" id="testSupabase" type="button">Testar conexão</button>
-            <button class="btn teal" id="syncToSupabase" type="button">Enviar para Supabase</button>
+            <button class="btn teal" id="syncToSupabase" type="button">Enviar agora para Supabase</button>
             <button class="btn ghost" id="syncFromSupabase" type="button">Puxar do Supabase</button>
           </div>
         </div>
+        <div class="sync-health-grid" aria-label="Diagnóstico de sincronização">
+          <div class="sync-health-card"><small>Conexão</small><strong id="syncHealthStatus">${navigator.onLine ? '<span class="ok">online</span>' : '<span class="bad">offline</span>'}</strong></div>
+          <div class="sync-health-card"><small>Último envio</small><strong id="syncHealthUpload">${formatDateTimeBR(sync.lastUploadAt)}</strong></div>
+          <div class="sync-health-card"><small>Último carregamento</small><strong id="syncHealthDownload">${formatDateTimeBR(sync.lastDownloadAt)}</strong></div>
+          <div class="sync-health-card"><small>Backup segurança local</small><strong id="syncHealthSafety">${safety ? formatDateTimeBR(safety.createdAt) : '—'}</strong></div>
+          <div class="sync-health-card" style="grid-column:span 2"><small>Conteúdo local</small><strong id="syncHealthLocal">${escapeHTML(localSummary)}</strong></div>
+          <div class="sync-health-card" style="grid-column:span 2"><small>Conteúdo Supabase conhecido</small><strong id="syncHealthRemote">${escapeHTML(sync.remoteSummary || sync.lastSummary || '—')}</strong></div>
+          <div class="sync-health-card" style="grid-column:1/-1"><small>Último erro</small><strong id="syncHealthError">${escapeHTML(sync.lastError ? `${formatDateTimeBR(sync.lastErrorAt)} · ${sync.lastError}` : '—')}</strong></div>
+        </div>
+        <div class="sync-actions-extra">
+          <button class="btn ghost" id="restoreSafetyBackup" type="button">Restaurar último backup local de segurança</button>
+        </div>
+        <p class="sync-mini-note">Proteção ativa: o sistema bloqueia envio vazio, confirma substituições e cria backup local antes de puxar dados do Supabase.</p>
         <div class="sync-status" id="supaStatus">Modo online ativo em vvs_backups. Cadastre dados e o sistema salvará automaticamente no Supabase. Use os botões para testar, enviar ou puxar manualmente.</div>
       </section>
 
@@ -4768,6 +4923,8 @@ body{
     $('#testSupabase').onclick = testSupabaseConnection;
     $('#syncToSupabase').onclick = syncToSupabase;
     $('#syncFromSupabase').onclick = syncFromSupabase;
+    if($('#restoreSafetyBackup')) $('#restoreSafetyBackup').onclick = restoreLocalSafetyBackup;
+    refreshSupabaseHealthPanel();
     if($('#runQA')) $('#runQA').onclick = () => executeQAReport();
     if($('#runQASimulation')) $('#runQASimulation').onclick = () => executeQASimulation();
     if($('#repairQA')) $('#repairQA').onclick = () => repairSafeDataLinks();
@@ -7222,6 +7379,8 @@ function render(){
     $('#scrim').onclick = () => { closeModal(); closeMobileNav(); };
     document.addEventListener('keydown', ev => { if(ev.key === 'Escape'){ closeModal(); closeMobileNav(); } });
     window.addEventListener('resize', () => { if(window.innerWidth > 900) closeMobileNav(); });
+    window.addEventListener('online', () => { setLocalSyncState({syncStatus:'online'}); setSupabaseStatusSafe('Conexão restaurada. O salvamento automático voltará a funcionar.', 'ok'); refreshSupabaseHealthPanel(); scheduleAutoSupabaseSync('online_back'); });
+    window.addEventListener('offline', () => { setLocalSyncState({syncStatus:'offline'}); setSupabaseStatusSafe('Você está offline. Os dados continuam salvos localmente e serão enviados quando a conexão voltar.', 'bad'); refreshSupabaseHealthPanel(); });
     $('#btnCollapse').onclick = () => {
       $('#app').classList.toggle('is-collapsed');
       const collapsed = $('#app').classList.contains('is-collapsed');
