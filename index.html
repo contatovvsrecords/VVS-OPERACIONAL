@@ -3130,13 +3130,19 @@ body{
 
   function normalizeOpportunityCost(c, fallbackIndex=0){
     const value = Number(c?.valor || 0);
+    const unitValue = c?.valorUnitario != null ? Number(c.valorUnitario || 0) : Number(c?.valorBase || c?.custoUnitario || c?.custo || c?.valor || 0);
+    const qtyApplied = Math.max(1, Number(c?.quantidadeAplicada || c?.quantidade || 1));
     return {
       id:c?.id || uid('cst'),
+      serviceCostId:c?.serviceCostId || c?.custoServicoId || c?.sourceId || '',
       descricao:c?.descricao || c?.nome || `Custo ${fallbackIndex+1}`,
       categoria:c?.categoria || 'Operacional',
-      responsavel:c?.responsavel || '',
-      profissionalId:c?.profissionalId || '',
+      responsavel:c?.responsavel || c?.profissionalNome || c?.colaborador || '',
+      profissionalId:c?.profissionalId || c?.colaboradorId || '',
       valor:value,
+      valorUnitario:unitValue,
+      quantidadeAplicada:qtyApplied,
+      multiplicaPorQuantidade:c?.multiplicaPorQuantidade === true || String(c?.origem || '').includes('servico'),
       parcelas:Number(c?.parcelas || c?.parc || 1),
       frequencia:c?.frequencia || c?.freq || 'única',
       origem:c?.origem || 'manual'
@@ -3182,6 +3188,10 @@ body{
       <div class="fld"><label>Valor</label><input data-cost-field="valor" type="number" step="0.01" value="${Number(cost.valor || 0)}"></div>
       <button class="btn sm ghost" type="button" data-remove-cost title="Remover custo">🗑</button>
       <input type="hidden" data-cost-field="id" value="${escapeHTML(cost.id)}">
+      <input type="hidden" data-cost-field="serviceCostId" value="${escapeHTML(cost.serviceCostId || '')}">
+      <input type="hidden" data-cost-field="valorUnitario" value="${Number(cost.valorUnitario || cost.valor || 0)}">
+      <input type="hidden" data-cost-field="quantidadeAplicada" value="${Number(cost.quantidadeAplicada || 1)}">
+      <input type="hidden" data-cost-field="multiplicaPorQuantidade" value="${cost.multiplicaPorQuantidade ? 'true' : 'false'}">
       <input type="hidden" data-cost-field="parcelas" value="${Number(cost.parcelas || 1)}">
       <input type="hidden" data-cost-field="frequencia" value="${escapeHTML(cost.frequencia || 'única')}">
       <input type="hidden" data-cost-field="origem" value="${escapeHTML(cost.origem || 'manual')}">
@@ -3199,6 +3209,10 @@ body{
         categoria:read('categoria'),
         responsavel:read('responsavel'),
         valor:Number(read('valor') || 0),
+        valorUnitario:Number(read('valorUnitario') || read('valor') || 0),
+        quantidadeAplicada:Number(read('quantidadeAplicada') || 1),
+        multiplicaPorQuantidade:read('multiplicaPorQuantidade') === 'true',
+        serviceCostId:read('serviceCostId') || '',
         parcelas:Number(read('parcelas') || 1),
         frequencia:read('frequencia') || 'única',
         origem:read('origem') || 'manual'
@@ -3423,7 +3437,11 @@ body{
           const qtd = Math.max(1, Number($('#quantidade')?.value || 1));
           const unit = Number($('#valorUnitario')?.value || 0);
           if($('#valor')) $('#valor').value = round2(qtd * unit);
-          updateCostSummary();
+          if(typeof syncOpportunityCostsFromFields === 'function'){
+            syncOpportunityCostsFromFields(true);
+          }else{
+            updateCostSummary();
+          }
         }
         function bindCostRows(){
           $$('[data-remove-cost]').forEach(btn => btn.onclick = () => {
@@ -5874,9 +5892,15 @@ function render(){
     };
   }
 
+  function isAutoOpportunityCost(c){
+    return String(c?.origem || '').startsWith('auto-');
+  }
+
   function automaticOpportunityCostsFromDraft(draft, keepManual){
     const service = byId(DB.servicos, draft.servicoId);
-    const revenue = Number(draft.valor || 0);
+    const quantidade = Math.max(1, Number(draft.quantidade || 1));
+    const unit = Number(draft.valorUnitario || 0);
+    const revenue = round2(Number(draft.valor || 0) || (unit ? unit * quantidade : 0));
     const seller = byId(DB.profissionais, draft.profissionalId);
     const costs = [];
 
@@ -5888,6 +5912,9 @@ function render(){
         responsavel:seller?.nome || 'Vendedor',
         profissionalId:draft.profissionalId,
         valor:round2(revenue * pct / 100),
+        valorUnitario:round2(revenue * pct / 100),
+        quantidadeAplicada:1,
+        multiplicaPorQuantidade:false,
         origem:'auto-comissao'
       }, costs.length));
     }
@@ -5900,6 +5927,9 @@ function render(){
         responsavel:'Fiscal / Impostos',
         profissionalId:'',
         valor:round2(revenue * pct / 100),
+        valorUnitario:round2(revenue * pct / 100),
+        quantidadeAplicada:1,
+        multiplicaPorQuantidade:false,
         origem:'auto-imposto'
       }, costs.length));
     }
@@ -5908,28 +5938,41 @@ function render(){
     serviceCosts.forEach((c, idx) => {
       const profId = c.profissionalId || c.colaboradorId || '';
       const prof = profId ? byId(DB.profissionais, profId) : null;
+      const unitCost = Number(c.valorUnitario ?? c.valor ?? c.custo ?? 0) || 0;
+      const totalCost = round2(unitCost * quantidade);
       costs.push(normalizeOpportunityCost({
+        id:c.id ? `opp_${c.id}` : uid('cst'),
+        serviceCostId:c.id || '',
         descricao:c.descricao || c.nome || c.funcao || `Custo operacional ${idx+1}`,
         categoria:c.categoria || c.funcao || 'Operacional',
-        responsavel:c.responsavel || c.colaborador || prof?.nome || c.nome || '',
+        responsavel:c.responsavel || c.colaborador || prof?.nome || c.profissionalNome || c.nome || '',
         profissionalId:profId,
-        valor:round2(Number(c.valor || c.custo || 0)),
+        valor:totalCost,
+        valorUnitario:unitCost,
+        quantidadeAplicada:quantidade,
+        multiplicaPorQuantidade:true,
         origem:'auto-servico'
       }, costs.length));
     });
 
-    (keepManual || []).forEach(c => costs.push(normalizeOpportunityCost(c, costs.length)));
+    (keepManual || [])
+      .filter(c => !isAutoOpportunityCost(c))
+      .forEach(c => costs.push(normalizeOpportunityCost(c, costs.length)));
     return costs;
   }
 
   function defaultOpportunityCosts(o){
     const existing = Array.isArray(o?.custos) ? o.custos.filter(c => c && (c.descricao || c.valor || c.categoria)) : [];
-    if(existing.length) return existing.map(normalizeOpportunityCost);
+    if(!o?.servicoId){
+      return existing.length ? existing.map(normalizeOpportunityCost) : [];
+    }
     return automaticOpportunityCostsFromDraft({
       servicoId:o?.servicoId || '',
       profissionalId:o?.profissionalId || '',
+      valorUnitario:Number(o?.valorUnitario || 0),
+      quantidade:Math.max(1, Number(o?.quantidade || 1)),
       valor:Number(o?.valor || 0)
-    }, []);
+    }, existing);
   }
 
   function manualCostsFromCurrentDOM(){
@@ -7530,7 +7573,76 @@ function render(){
   }
 
 
-  function init(){
+  
+  function migrateOpportunityCostQuantityIntegrity(){
+    let changes = 0;
+    (DB.oportunidades || []).forEach(o => {
+      if(!o || !o.servicoId) return;
+      const oldCosts = Array.isArray(o.custos) ? o.custos : [];
+      const nextCosts = defaultOpportunityCosts(o);
+      const oldSig = JSON.stringify(oldCosts.map(c => ({
+        d:c.descricao || c.nome || '',
+        o:c.origem || '',
+        v:round2(Number(c.valor || 0)),
+        q:Number(c.quantidadeAplicada || 1)
+      })));
+      const nextSig = JSON.stringify(nextCosts.map(c => ({
+        d:c.descricao || c.nome || '',
+        o:c.origem || '',
+        v:round2(Number(c.valor || 0)),
+        q:Number(c.quantidadeAplicada || 1)
+      })));
+      if(oldSig !== nextSig){
+        o.custos = nextCosts;
+        changes++;
+      }
+
+      const sale = (DB.vendas || []).find(v => v.id === o.vendaId || v.oportunidadeId === o.id);
+      if(sale){
+        const costTotal = opportunityCostsTotal(nextCosts);
+        const beforeSale = {
+          custoTotal:Number(sale.custoTotal || 0),
+          margem:Number(sale.margem || 0)
+        };
+        sale.custos = nextCosts;
+        sale.custoTotal = costTotal;
+        sale.margem = round2(Number(sale.valor || o.valor || 0) - costTotal);
+        if(round2(beforeSale.custoTotal) !== round2(sale.custoTotal) || round2(beforeSale.margem) !== round2(sale.margem)){
+          changes++;
+        }
+
+        const payableRows = (DB.contas || []).filter(c => c.tipo === 'pagar' && (c.vendaId === sale.id || c.oportunidadeId === o.id));
+        const hasPaidPayables = payableRows.some(c => ['pago','recebido','recebida','baixado','concluido'].includes(String(c.status || '').toLowerCase()));
+        if(payableRows.length && !hasPaidPayables){
+          DB.contas = (DB.contas || []).filter(c => !(c.tipo === 'pagar' && (c.vendaId === sale.id || c.oportunidadeId === o.id)));
+          nextCosts.forEach(cost => {
+            if(Number(cost.valor || 0) <= 0) return;
+            DB.contas.unshift(meta({
+              id:uid('cta'),
+              tipo:'pagar',
+              status:'aberto',
+              descricao:cost.descricao || 'Custo da venda',
+              valor:Number(cost.valor || 0),
+              vencimento:sale.data || o.dataFechamento || todayISO(),
+              categoria:cost.categoria || 'Custo',
+              responsavel:cost.responsavel || '',
+              vendaId:sale.id,
+              oportunidadeId:o.id,
+              observacoes:`Recalculado pela regra quantidade x custo unitário.`
+            }, true));
+          });
+          changes++;
+        }
+      }
+    });
+    if(changes){
+      audit('sistema','migrate-cost-quantity',null,{changes},'Correção automática: custos operacionais multiplicados pela quantidade da oportunidade.');
+      saveDB();
+    }
+    return changes;
+  }
+
+function init(){
     $('#todayLabel').textContent = new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     $$('.nav').forEach(btn => btn.onclick = () => { setRoute(btn.dataset.route); closeMobileNav(); });
     $('#btnMobileMenu').onclick = () => document.body.classList.contains('nav-open') ? closeMobileNav() : openMobileNav();
@@ -7555,7 +7667,9 @@ function render(){
       toast('Dados de exemplo restaurados.');
       setRoute('dashboard');
     });
+    const costFixes = migrateOpportunityCostQuantityIntegrity();
     render();
+    if(costFixes) setTimeout(()=>toast(`Custos recalculados por quantidade: ${costFixes} ajuste(s).`), 500);
     setTimeout(bootSupabaseOnline, 300);
   }
 
